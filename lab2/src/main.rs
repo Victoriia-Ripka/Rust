@@ -6,62 +6,50 @@ fn main() {
     let mut last_result: Option<f64> = None;
 
     loop {
-        let mut num1 = String::new();
-        let mut num2 = String::new();
-        let mut choice = String::new();
 
-        // Використовуємо попередній результат, якщо доступний
-        // і запитуємо ввід чисел від користувача
+        let mut input = String::new();
+
+        // Показуємо попередній результат, якщо доступний
         if let Some(prev_result) = last_result {
-            println!("Попередній результат: {}. Використати його як перше число? (т/н): ", prev_result);
-            let mut use_last = String::new();
-            stdin().read_line(&mut use_last).expect("Помилка вводу");
-            
-            if use_last.trim().eq_ignore_ascii_case("т") {
-                num1 = prev_result.to_string();
-            } else {
-                println!("Введіть перше число (або 'вихід'/'в' для виходу): ");
-                stdin().read_line(&mut num1).expect("Помилка вводу");
-                if num1.trim().eq_ignore_ascii_case("вихід") || num1.trim().eq_ignore_ascii_case("в") {
-                    println!("На все добре!");
-                    break;
-                }
-            }
-        } else {
-            println!("Введіть перше число (або 'вихід'/'в' для виходу): ");
-            stdin().read_line(&mut num1).expect("Помилка вводу");
-            if num1.trim().eq_ignore_ascii_case("вихід") || num1.trim().eq_ignore_ascii_case("в") {
-                println!("На все добре!");
-                break;
-            }
+            println!("Попередній результат: {}.", prev_result);
         }
 
-        let num1: f64 = match num1.trim().parse() {
+        // Вихід з циклу
+        println!("Введіть вираз (або 'вихід'/'в' для виходу): ");
+        stdin().read_line(&mut input).expect("Помилка вводу");
+        let trimmed_input = input.trim();
+        if trimmed_input.eq_ignore_ascii_case("вихід") || trimmed_input.eq_ignore_ascii_case("в") {
+            println!("На все добре!");
+            break;
+        }
+
+        // Розділяємо ввід на частини
+        let tokens: Vec<&str> = trimmed_input.split_whitespace().collect();
+        if tokens.len() < 3 {
+            println!("Будь ласка, введіть коректний вираз у форматі: оператор перше число друге число.");
+            continue;
+        }
+
+        // Зчитуємо оператор та операнди
+        let choice = tokens[0];
+        let num1: f64 = match tokens[1].parse() {
             Ok(n) => n,
             Err(_) => {
-                println!("Неправильне значення, спробуйте ще.");
+                println!("Неправильне значення для першого числа, спробуйте ще.");
                 continue;
             }
         };
 
-        println!("Введіть друге число: ");
-        stdin().read_line(&mut num2).expect("Помилка вводу");
-        
-        let num2: f64 = match num2.trim().parse() {
+        let num2: f64 = match tokens[2].parse() {
             Ok(n) => n,
             Err(_) => {
-                println!("Неправильне значення, спробуйте ще.");
+                println!("Неправильне значення для другого числа, спробуйте ще.");
                 continue;
             }
         };
-        
-        // Зчитуємо оператор та операнди
-        println!("Введіть операцію (+ - * /): ");
-        stdin().read_line(&mut choice).expect("Помилка вводу");
 
         // Виконуємо операцію
-        let choice = choice.trim();
-        let result = if choice == "+" {
+        let result = if choice  == "+" {
             num1 + num2
         } else if choice == "-" {
             num1 - num2
