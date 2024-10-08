@@ -1,44 +1,65 @@
 use std::io::stdin;
 
 fn main() {
-    println!("Calculator program\n\n");
+    println!("Калькулятор\n\n");
+
+    let mut last_result: Option<f64> = None;
 
     loop {
         let mut num1 = String::new();
         let mut num2 = String::new();
         let mut choice = String::new();
 
-        println!("Write first number (or type 'Exit' or 'e' to quit): ");
-        stdin().read_line(&mut num1).expect("Error in input");
-        let num1 = num1.trim();
-        
-        if num1.eq_ignore_ascii_case("exit") || num1.eq_ignore_ascii_case("e") {
-            println!("Exiting the calculator. Goodbye!");
-            break;
+        // Використовуємо попередній результат, якщо доступний
+        // і запитуємо ввід чисел від користувача
+        if let Some(prev_result) = last_result {
+            println!("Попередній результат: {}. Використати його як перше число? (т/н): ", prev_result);
+            let mut use_last = String::new();
+            stdin().read_line(&mut use_last).expect("Помилка вводу");
+            
+            if use_last.trim().eq_ignore_ascii_case("т") {
+                num1 = prev_result.to_string();
+            } else {
+                println!("Введіть перше число (або 'вихід'/'в' для виходу): ");
+                stdin().read_line(&mut num1).expect("Помилка вводу");
+                if num1.trim().eq_ignore_ascii_case("вихід") || num1.trim().eq_ignore_ascii_case("в") {
+                    println!("На все добре!");
+                    break;
+                }
+            }
+        } else {
+            println!("Введіть перше число (або 'вихід'/'в' для виходу): ");
+            stdin().read_line(&mut num1).expect("Помилка вводу");
+            if num1.trim().eq_ignore_ascii_case("вихід") || num1.trim().eq_ignore_ascii_case("в") {
+                println!("На все добре!");
+                break;
+            }
         }
-        
-        let num1: f64 = match num1.parse() {
+
+        let num1: f64 = match num1.trim().parse() {
             Ok(n) => n,
             Err(_) => {
-                println!("Invalid number, please try again.");
+                println!("Неправильне значення, спробуйте ще.");
                 continue;
             }
         };
 
-        println!("Write second number: ");
-        stdin().read_line(&mut num2).expect("Error in input");
+        println!("Введіть друге число: ");
+        stdin().read_line(&mut num2).expect("Помилка вводу");
         
         let num2: f64 = match num2.trim().parse() {
             Ok(n) => n,
             Err(_) => {
-                println!("Invalid number, please try again.");
+                println!("Неправильне значення, спробуйте ще.");
                 continue;
             }
         };
+        
+        // Зчитуємо оператор та операнди
+        println!("Введіть операцію (+ - * /): ");
+        stdin().read_line(&mut choice).expect("Помилка вводу");
 
-        println!("Provide the operation (+ - * /): ");
-        stdin().read_line(&mut choice).expect("Error in input");
-
+        // Виконуємо операцію
         let choice = choice.trim();
         let result = if choice == "+" {
             num1 + num2
@@ -50,14 +71,17 @@ fn main() {
             if num2 != 0.0 {
                 num1 / num2
             } else {
-                println!("Cannot divide by zero.");
+                println!("Помилка: ділення на нуль.");
                 continue;
             }
         } else {
-            println!("Not a valid choice");
+            println!("Недопустиме значення операції");
             continue;
         };
 
         println!("{} {} {} = {}", num1, choice, num2, result);
+
+        // Зберігаємо результат для наступного використання
+        last_result = Some(result); 
     }
 }
