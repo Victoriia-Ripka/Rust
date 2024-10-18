@@ -103,7 +103,7 @@ fn main() {
 
         // Показуємо попередній результат, якщо доступний
         if let Some(prev_result) = last_result {
-            println!("Попередній результат: {}.", prev_result);
+            println!("Попередній результат: {:.2}.", prev_result);
         }
 
         // Вихід з циклу
@@ -122,7 +122,8 @@ fn main() {
 
                 // Обчислюємо значення на основі префіксного запису
                 if let Some(result) = calculate_prefix(&prefix) {
-                    println!("Результат: {}", result);
+                    let rounded_result = format!("{:.2}", result);
+                    println!("Результат: {}", rounded_result);
                     last_result = Some(result);
                 } else {
                     println!("Помилка під час обчислення виразу.");
