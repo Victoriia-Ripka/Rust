@@ -5,15 +5,6 @@ fn is_operator(c: char) -> bool {
     matches!(c, '+' | '-' | '*' | '/')
 }
 
-// Визначаємо пріоритет оператора
-fn precedence(op: char) -> i32 {
-    match op {
-        '+' | '-' => 1,
-        '*' | '/' => 2,
-        _ => 0,
-    }
-}
-
 // Перетворюємо вираз у префіксну нотацію
 fn to_prefix(expression: &str) -> Option<Vec<String>> {
     let mut operators_stack = Vec::new(); // + - * / 
@@ -59,39 +50,43 @@ fn to_prefix(expression: &str) -> Option<Vec<String>> {
     Some(prefix_stack)
 }
 
+// Визначаємо пріоритет оператора
+fn precedence(op: char) -> i32 {
+    match op {
+        '+' | '-' => 1,
+        '*' | '/' => 2,
+        _ => 0,
+    }
+}
+
 // Обчислюємо вираз у префіксній формі
-fn calculate_prefix(prefix: Vec<String>) -> Option<f64> {
+fn calculate_prefix(prefix: &Vec<String>) -> Option<f64> {
     let mut stack: Vec<f64> = Vec::new();
 
-    for token in prefix.iter().rev() {
+    for token in prefix.iter().rev().flat_map(|s| s.split_whitespace().rev()) {
         if let Ok(num) = token.parse::<f64>() {
             stack.push(num);
-        } else {
-            let mut tokens = token.split_whitespace();
-            let op = tokens.next().unwrap();
-
-            if let Some(op) = op.chars().next() {
-                if stack.len() < 2 {
-                    return None; // Недостатньо операндів
-                }
-                let a = stack.pop().unwrap();
-                let b = stack.pop().unwrap();
-                let result = match op {
-                    '+' => a + b,
-                    '-' => a - b,
-                    '*' => a * b,
-                    '/' => {
-                        if b == 0.0 {
-                            println!("Помилка: ділення на нуль.");
-                            return None;
-                        } else {
-                            a / b
-                        }
-                    }
-                    _ => return None, // Неприпустимий оператор
-                };
-                stack.push(result);
+        } else if is_operator(token.chars().next().unwrap()) {
+            if stack.len() < 2 {
+                return None; // Недостатньо операндів
             }
+            let a = stack.pop().unwrap();
+            let b = stack.pop().unwrap();
+            let result = match token {
+                "+" => a + b,
+                "-" => a - b,
+                "*" => a * b,
+                "/" => {
+                    if b == 0.0 {
+                        println!("Помилка: ділення на нуль.");
+                        return None;
+                    } else {
+                        a / b
+                    }
+                }
+                _ => return None, // Неприпустимий оператор
+            };
+            stack.push(result);
         }
     }
 
@@ -126,7 +121,7 @@ fn main() {
                 println!("Префікс: {:?}", prefix);
 
                 // Обчислюємо значення на основі префіксного запису
-                if let Some(result) = calculate_prefix(prefix) {
+                if let Some(result) = calculate_prefix(&prefix) {
                     println!("Результат: {}", result);
                     last_result = Some(result);
                 } else {
