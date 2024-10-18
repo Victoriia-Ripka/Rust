@@ -17,47 +17,47 @@ fn precedence(op: char) -> i32 {
 
 // Перетворюємо вираз у префіксну нотацію
 fn to_prefix(expression: &str) -> Option<Vec<String>> {
-    let mut operators_stack = VecDeque::new(); // + - * / 
+    let mut operators_stack = Vec::new(); // + - * / 
     let mut numbers_stack = String::new();
-    let mut prefix_stack = VecDeque::new(); 
+    let mut prefix_stack = Vec::new(); 
     
     for c in expression.chars().rev() {
         if c.is_digit(10) || c == '.' {
             numbers_stack.push(c); // зчитуємо число з права наліво
         } else if is_operator(c) {
             if !numbers_stack.is_empty() {
-                prefix_stack.push_front(numbers_stack.chars().rev().collect::<String>()); // додаємо число
+                prefix_stack.push(numbers_stack.chars().rev().collect::<String>()); // Додаємо число
                 numbers_stack.clear();
             }
-            while let Some(&top_op) = operators_stack.back() {
+            while let Some(&top_op) = operators_stack.last() {
                 if precedence(top_op) > precedence(c) {
-                    let operator = operators_stack.pop_back().unwrap();
-                    let operand2 = prefix_stack.pop_front().unwrap();
-                    let operand1 = prefix_stack.pop_front().unwrap();
+                    let operator = operators_stack.pop().unwrap();
+                    let operand1 = prefix_stack.pop().unwrap();
+                    let operand2 = prefix_stack.pop().unwrap();
                     let new_expr = format!("{} {} {}", operator, operand1, operand2);
-                    prefix_stack.push_front(new_expr);
+                    prefix_stack.push(new_expr);
                 } else {
                     break;
                 }
             }
-            operators_stack.push_back(c);
+            operators_stack.push(c);
         } else {
             return None; // неприпустимий символ
         }
     }
 
     if !numbers_stack.is_empty() {
-        prefix_stack.push_front(numbers_stack.chars().rev().collect::<String>());
+        prefix_stack.push(numbers_stack.chars().rev().collect::<String>());
     }
 
-    while let Some(op) = operators_stack.pop_back() {
-        let operand2 = prefix_stack.pop_front().unwrap();
-        let operand1 = prefix_stack.pop_front().unwrap();
+    while let Some(op) = operators_stack.pop() {
+        let operand1 = prefix_stack.pop().unwrap();
+        let operand2 = prefix_stack.pop().unwrap();
         let new_expr = format!("{} {} {}", op, operand1, operand2);
-        prefix_stack.push_front(new_expr);
+        prefix_stack.push(new_expr);
     }
 
-    Some(prefix_stack.into_iter().collect())
+    Some(prefix_stack)
 }
 
 fn main() {
