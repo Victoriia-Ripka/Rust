@@ -1,5 +1,4 @@
 use std::io::stdin;
-use std::collections::VecDeque;
 
 // Перевіряємо чи символ є оператором
 fn is_operator(c: char) -> bool {
@@ -60,6 +59,45 @@ fn to_prefix(expression: &str) -> Option<Vec<String>> {
     Some(prefix_stack)
 }
 
+// Обчислюємо вираз у префіксній формі
+fn calculate_prefix(prefix: Vec<String>) -> Option<f64> {
+    let mut stack: Vec<f64> = Vec::new();
+
+    for token in prefix.iter().rev() {
+        if let Ok(num) = token.parse::<f64>() {
+            stack.push(num);
+        } else {
+            let mut tokens = token.split_whitespace();
+            let op = tokens.next().unwrap();
+
+            if let Some(op) = op.chars().next() {
+                if stack.len() < 2 {
+                    return None; // Недостатньо операндів
+                }
+                let a = stack.pop().unwrap();
+                let b = stack.pop().unwrap();
+                let result = match op {
+                    '+' => a + b,
+                    '-' => a - b,
+                    '*' => a * b,
+                    '/' => {
+                        if b == 0.0 {
+                            println!("Помилка: ділення на нуль.");
+                            return None;
+                        } else {
+                            a / b
+                        }
+                    }
+                    _ => return None, // Неприпустимий оператор
+                };
+                stack.push(result);
+            }
+        }
+    }
+
+    stack.pop()
+}
+
 fn main() {
     println!("Калькулятор\n\n");
 
@@ -86,6 +124,14 @@ fn main() {
         match to_prefix(trimmed_input) {
             Some(prefix) => {
                 println!("Префікс: {:?}", prefix);
+
+                // Обчислюємо значення на основі префіксного запису
+                if let Some(result) = calculate_prefix(prefix) {
+                    println!("Результат: {}", result);
+                    last_result = Some(result);
+                } else {
+                    println!("Помилка під час обчислення виразу.");
+                }
             }
             None => {
                 println!("Некоректний вираз, спробуйте знову.");
