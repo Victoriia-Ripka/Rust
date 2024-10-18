@@ -1,4 +1,64 @@
 use std::io::stdin;
+use std::collections::VecDeque;
+
+// Перевіряємо чи символ є оператором
+fn is_operator(c: char) -> bool {
+    matches!(c, '+' | '-' | '*' | '/')
+}
+
+// Визначаємо пріоритет оператора
+fn precedence(op: char) -> i32 {
+    match op {
+        '+' | '-' => 1,
+        '*' | '/' => 2,
+        _ => 0,
+    }
+}
+
+// Перетворюємо вираз у префіксну нотацію
+fn to_prefix(expression: &str) -> Option<Vec<String>> {
+    let mut operators = VecDeque::new(); // + - * / 
+    let mut prefix_stack = VecDeque::new(); 
+    let mut numbers_stack = String::new();
+
+    for c in expression.chars().rev() {
+        if c.is_digit(10) || c == '.' {
+            numbers_stack.push(c); // зчитуємо число з права наліво
+        } else if is_operator(c) {
+            if !numbers_stack.is_empty() {
+                prefix_stack.push_front(numbers_stack.chars().rev().collect::<String>()); // додаємо число
+                numbers_stack.clear();
+            }
+            while let Some(&top_op) = operators.back() {
+                if precedence(top_op) > precedence(c) {
+                    let operator = operators.pop_back().unwrap();
+                    let operand2 = prefix_stack.pop_front().unwrap();
+                    let operand1 = prefix_stack.pop_front().unwrap();
+                    let new_expr = format!("{} {} {}", operator, operand1, operand2);
+                    prefix_stack.push_front(new_expr);
+                } else {
+                    break;
+                }
+            }
+            operators.push_back(c);
+        } else {
+            return None; // неприпустимий символ
+        }
+    }
+
+    if !numbers_stack.is_empty() {
+        prefix_stack.push_front(numbers_in_stack.chars().rev().collect::<String>());
+    }
+
+    while let Some(op) = operators.pop_back() {
+        let operand2 = prefix_stack.pop_front().unwrap();
+        let operand1 = prefix_stack.pop_front().unwrap();
+        let new_expr = format!("{} {} {}", op, operand1, operand2);
+        prefix_stack.push_front(new_expr);
+    }
+
+    Some(prefix_stack.into_iter().collect())
+}
 
 fn main() {
     println!("Калькулятор\n\n");
@@ -6,7 +66,6 @@ fn main() {
     let mut last_result: Option<f64> = None;
 
     loop {
-
         let mut input = String::new();
 
         // Показуємо попередній результат, якщо доступний
@@ -23,53 +82,14 @@ fn main() {
             break;
         }
 
-        // Розділяємо ввід на частини
-        let tokens: Vec<&str> = trimmed_input.split_whitespace().collect();
-        if tokens.len() < 3 {
-            println!("Будь ласка, введіть коректний вираз у форматі: оператор перше число друге число.");
-            continue;
+        // Перевіряємо та перетворюємо вираз у префіксну нотацію
+        match to_prefix(trimmed_input) {
+            Some(prefix) => {
+                println!("Префікс: {:?}", prefix);
+            }
+            None => {
+                println!("Некоректний вираз, спробуйте знову.");
+            }
         }
-
-        // Зчитуємо оператор та операнди
-        let choice = tokens[0];
-        let num1: f64 = match tokens[1].parse() {
-            Ok(n) => n,
-            Err(_) => {
-                println!("Неправильне значення для першого числа, спробуйте ще.");
-                continue;
-            }
-        };
-
-        let num2: f64 = match tokens[2].parse() {
-            Ok(n) => n,
-            Err(_) => {
-                println!("Неправильне значення для другого числа, спробуйте ще.");
-                continue;
-            }
-        };
-
-        // Виконуємо операцію
-        let result = if choice  == "+" {
-            num1 + num2
-        } else if choice == "-" {
-            num1 - num2
-        } else if choice == "*" {
-            num1 * num2
-        } else if choice == "/" {
-            if num2 != 0.0 {
-                num1 / num2
-            } else {
-                println!("Помилка: ділення на нуль.");
-                continue;
-            }
-        } else {
-            println!("Недопустиме значення операції");
-            continue;
-        };
-
-        println!("{} {} {} = {}", num1, choice, num2, result);
-
-        // Зберігаємо результат для наступного використання
-        last_result = Some(result); 
     }
 }
