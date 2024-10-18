@@ -17,10 +17,10 @@ fn precedence(op: char) -> i32 {
 
 // Перетворюємо вираз у префіксну нотацію
 fn to_prefix(expression: &str) -> Option<Vec<String>> {
-    let mut operators = VecDeque::new(); // + - * / 
-    let mut prefix_stack = VecDeque::new(); 
+    let mut operators_stack = VecDeque::new(); // + - * / 
     let mut numbers_stack = String::new();
-
+    let mut prefix_stack = VecDeque::new(); 
+    
     for c in expression.chars().rev() {
         if c.is_digit(10) || c == '.' {
             numbers_stack.push(c); // зчитуємо число з права наліво
@@ -29,9 +29,9 @@ fn to_prefix(expression: &str) -> Option<Vec<String>> {
                 prefix_stack.push_front(numbers_stack.chars().rev().collect::<String>()); // додаємо число
                 numbers_stack.clear();
             }
-            while let Some(&top_op) = operators.back() {
+            while let Some(&top_op) = operators_stack.back() {
                 if precedence(top_op) > precedence(c) {
-                    let operator = operators.pop_back().unwrap();
+                    let operator = operators_stack.pop_back().unwrap();
                     let operand2 = prefix_stack.pop_front().unwrap();
                     let operand1 = prefix_stack.pop_front().unwrap();
                     let new_expr = format!("{} {} {}", operator, operand1, operand2);
@@ -40,17 +40,17 @@ fn to_prefix(expression: &str) -> Option<Vec<String>> {
                     break;
                 }
             }
-            operators.push_back(c);
+            operators_stack.push_back(c);
         } else {
             return None; // неприпустимий символ
         }
     }
 
     if !numbers_stack.is_empty() {
-        prefix_stack.push_front(numbers_in_stack.chars().rev().collect::<String>());
+        prefix_stack.push_front(numbers_stack.chars().rev().collect::<String>());
     }
 
-    while let Some(op) = operators.pop_back() {
+    while let Some(op) = operators_stack.pop_back() {
         let operand2 = prefix_stack.pop_front().unwrap();
         let operand1 = prefix_stack.pop_front().unwrap();
         let new_expr = format!("{} {} {}", op, operand1, operand2);
