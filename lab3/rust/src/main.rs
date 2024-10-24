@@ -1,8 +1,12 @@
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use actix_cors::Cors;
 use serde::{Deserialize, Serialize};
+use serde_json::to_string_pretty;
 use uuid::Uuid;
 use std::sync::{Mutex, MutexGuard};
+use std::fs::File;
+use std::io::Write;
+use std::path::Path;
 use chrono::{Utc, DateTime};
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -28,11 +32,13 @@ struct AppState {
     todos_list: Mutex<Vec<TodoItem>>,
 }
 
+// READ
 async fn get_todos(data: web::Data<AppState>) -> impl Responder {
     let todos: MutexGuard<Vec<TodoItem>> = data.todos_list.lock().unwrap();
     HttpResponse::Ok().json(&*todos)
 }
 
+// CREATE
 async fn add_todo(item: web::Json<CreateTodoItem>, data: web::Data<AppState>) -> impl Responder {
     let mut todos: MutexGuard<Vec<TodoItem>> = data.todos_list.lock().unwrap();
     let new_todo = TodoItem {
@@ -45,6 +51,7 @@ async fn add_todo(item: web::Json<CreateTodoItem>, data: web::Data<AppState>) ->
     HttpResponse::Ok().json(&*todos)
 }
 
+// UPDATE
 async fn update_todo(path: web::Path<Uuid>, item: web::Json<UpdateTodoItem>, data: web::Data<AppState>,) -> impl Responder {
     let mut todos: MutexGuard<Vec<TodoItem>> = data.todos_list.lock().unwrap();
     if let Some(todo) = todos.iter_mut().find(|t| t.id == *path) {
@@ -60,6 +67,7 @@ async fn update_todo(path: web::Path<Uuid>, item: web::Json<UpdateTodoItem>, dat
     }
 }
 
+// DELETE
 async fn delete_todo(path: web::Path<Uuid>, data: web::Data<AppState>) -> impl Responder {
     let mut todos: MutexGuard<Vec<TodoItem>> = data.todos_list.lock().unwrap();
     if todos.iter().any(|t| t.id == *path) {
