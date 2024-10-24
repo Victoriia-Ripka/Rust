@@ -2,17 +2,29 @@ import React, { useState, useEffect } from "react";
 import { MdDelete, MdEdit } from "react-icons/md";
 import axios from "axios";
 import { format } from "date-fns"
-
 import CheckBox from '../components/ChechBox'
 
 const App = () => {
-    const [editText, setEditText] = useState("");
     const [todos, setTodos] = useState([]);
     const [todosCopy, setTodosCopy] = useState([]);
     const [todoInput, setTodoInput] = useState("");
     const [editIndex, setEditIndex] = useState(-1);
     const [search, setSearch] = useState("");
     const [count, setCount] = useState(0);
+
+    useEffect(() => {
+        const loadTodos = async () => {
+            try {
+                const response = await axios.get('http://127.0.0.1:8080/todos/load');
+                setTodos(response.data);
+                setTodosCopy(response.data); // Update the local copy as well
+            } catch (error) {
+                console.log("Error loading saved todos:", error);
+            }
+        };
+
+        loadTodos();
+    }, []);
 
     const fetchTodos = async () => {
         try {
@@ -135,6 +147,25 @@ const App = () => {
         ));
     };
 
+    const saveTodos = async () => {
+        try {
+            const response = await axios.post('http://127.0.0.1:8080/todos/save');
+            console.log(response.data);
+        } catch (error) {
+            console.log("Error saving todos:", error);
+        }
+    };
+
+    const loadTodosFromFile = async () => {
+        try {
+            const response = await axios.get('http://127.0.0.1:8080/todos/load');
+            setTodos(response.data);
+            setTodosCopy(response.data);
+        } catch (error) {
+            console.log("Error loading todos:", error);
+        }
+    };
+
     return (
         <section className="main-section">
             <div className="todo-app">
@@ -171,6 +202,9 @@ const App = () => {
                     )}
                 </div>
             </div>
+
+            <button onClick={saveTodos}>Save Todos</button>
+            <button onClick={loadTodosFromFile}>Load Todos from File</button>
         </section>
     );
 }
