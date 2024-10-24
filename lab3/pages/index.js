@@ -167,14 +167,14 @@ const App = () => {
     };
 
     return (
-        <section className="main-section">
+        <section className="main-body">
             <div className="todo-app">
                 <div className="input-section">
                     <input
                         type="text"
                         id="todoInput"
                         placeholder="Add a todo"
-                        value={todoInput || ""} // Ensure it's always controlled
+                        value={todoInput || ""}
                         onChange={(e) => setTodoInput(e.target.value)}
                     />
                     <button onClick={addTodos} className="add">

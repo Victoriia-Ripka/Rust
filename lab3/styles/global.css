@@ -86,7 +86,6 @@ video {
     font: inherit;
     vertical-align: baseline;
 }
-
 /* HTML5 display-role reset for older browsers */
 article,
 aside,
@@ -101,21 +100,17 @@ nav,
 section {
     display: block;
 }
-
 body {
     line-height: 1;
 }
-
 ol,
 ul {
     list-style: none;
 }
-
 blockquote,
 q {
     quotes: none;
 }
-
 blockquote:before,
 blockquote:after,
 q:before,
@@ -123,15 +118,37 @@ q:after {
     content: '';
     content: none;
 }
-
 table {
     border-collapse: collapse;
     border-spacing: 0;
 }
+/* ELEMENT */
+body{
+    background-color: rgb(48, 48, 48);
+}
 
-
-
+.main-body{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+}
+.todo-app{
+    width: 60%;
+    margin-bottom: 20px;
+    border-radius: 15px;
+    padding: 60px 0 0 0;
+}
+.input-section{  /*141 */
+    display: flex;
+    align-items: center;
+    margin-top: 20px;
+    height: 30px;
+}
 .input-section input[type="text"] {
+    flex-grow: 1;
+    padding: 16px;
+    border: none;
     background-color: rgb(33, 33, 33);
     color: #fff;
     font-size: 16px;
@@ -157,6 +174,8 @@ table {
     border-radius: 5px;
     cursor: pointer;
     transition: background-color 0.3s ease;
+
+
     box-shadow: 9px 21px 30px -19px rgba(0, 0, 0, 0.63);
 }
 .input-section button:hover,
@@ -178,18 +197,28 @@ table {
     overflow-y: auto;
     background-color: rgb(33, 33, 33);
     border-radius: 30px;
+
+
     box-shadow: 9px 21px 30px -19px rgba(0, 0, 0, 0.63);
 }
 .todo-list{
     list-style-type: none;
-
+    padding: 0;
+    margin: 0;
 }
-
-
-
+.todo-list li{
+    display: flex;
+    align-items: center;
+    padding: 7px 30px;
+    background-color: rgb(38, 37, 37);
+    border-radius: 80px;
+    margin-bottom: 10px;
+    box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.2);
+}
 .todo-list li span{
     margin-left: 10px;
     color: #fff;
+
 }
 .delete-button{
     padding: 3px;
@@ -204,6 +233,31 @@ table {
     color: #fff !important;
     margin-right: auto;
     font-size: 16px !important;
+}
+.span-button{
+    margin-left: auto;
+    display: block;
+    padding: 5px;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 18px !important;
+}
+.span-button:hover,
+.span-button:focus{
+    background-color: rgb(52, 53, 53);
+    border-radius: 80px;
+    color: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+}
+.not-found{
+    color: #fff;
+    position: absolute;
+    top: 50%;
+    LEFT: 50%;
+    transform: translate(-50%, -50%);
+}
+.container{
+    cursor: pointer;
 }
 
 /* RESPONSIVE */
