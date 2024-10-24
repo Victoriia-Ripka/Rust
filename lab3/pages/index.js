@@ -72,16 +72,14 @@ const index = () => {
         try {
             const todoToUpdate = { ...todos[index], completed: !todos[index].completed }
             
-            const response = await axios.put(`http://127.0.0.1:8080/todos/${todoToUpdate.id}`);
-            const updatedTodos = [...todos];
-            updatedTodos[index] = response.data;
+            const response = await axios.put(`http://127.0.0.1:8080/todos/${todoToUpdate.id}`)
+            const data = response.data
 
-
-            const data = response.data;
-
-            
-            setTodos(todos.filter((todo) => todo.id !== id));
-            setTodosCopy(todos.filter((todo) => todo.id !== id));
+            const updatedTodos = [...todos]
+            updatedTodos[index] = data
+  
+            setTodos(updatedTodos)
+            setCount(count + 1)
         } catch (error) {
             console.log(error)
         }
@@ -96,6 +94,23 @@ const index = () => {
             console.log(error)
         }
     }    
+
+    const searchTodo = (e) => {
+        const results = todos.filter((todo) => {
+            todo.title.toLowerCase().includes(e.target.value.toLowerCase())
+        })
+
+        setSearchInput(results);
+    }
+
+    const formedatDate = (dateString) => {
+        try {
+            const date = new Date(dateString);
+            return isNan(date.getTime()) ? "Invalid Date" : format(date, "yyyy-MM-dd HH:mm:ss");;
+        } catch (error) {
+            console.log(error)
+        }
+    }
     
     return <div>index</div>;
 }

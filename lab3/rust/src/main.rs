@@ -2,7 +2,7 @@ use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use actix_cors::Cors;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
 use chrono::{Utc, DateTime};
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -33,8 +33,8 @@ async fn get_todos(data: web::Data<AppState>) -> impl Responder {
     HttpResponse::Ok().json(&*todos)
 }
 
-async fn add_todo(item: web::Json<CreateTodoItem>, data: web::F=Data<AppState>) -> impl Responder {
-    let mut todos: Result<MutexGuard<Vec<TodoItem>> = data.todos_list.lock().unwrap();
+async fn add_todo(item: web::Json<CreateTodoItem>, data: web::Data<AppState>) -> impl Responder {
+    let mut todos: MutexGuard<Vec<TodoItem>> = data.todos_list.lock().unwrap();
     let new_todo = TodoItem {
         id: Uuid::new_v4(),
         title: item.title.clone(),
@@ -88,5 +88,6 @@ async fn main() -> std::io::Result<()> {
             .route("/todos", web::post().to(add_todo))
             .route("/todos/{id}", web::put().to(update_todo))
             .route("/todos/{id}", web::delete().to(delete_todo))
-    }).bind("127.0.0.1:8080")? run().await
+    }).bind("127.0.0.1:8080")?.run().await
+
 }
