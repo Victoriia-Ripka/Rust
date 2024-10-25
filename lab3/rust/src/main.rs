@@ -1,13 +1,13 @@
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use actix_cors::Cors;
 use serde::{Deserialize, Serialize};
-use serde_json::{to_string_pretty, from_reader};
+use serde_json::from_reader;
 use uuid::Uuid;
 use std::sync::{Mutex, MutexGuard};
 use std::fs::File;
-use std::io::{Write, Read};
-use std::path::Path;
+use std::io::Write;
 use chrono::{Utc, DateTime};
+
 
 #[derive(Debug, Serialize, Deserialize)]
 struct TodoItem {
@@ -139,7 +139,7 @@ async fn load_todos(data: web::Data<AppState>) -> impl Responder {
 
 // Helper function to read todos
 fn load_todos_from_file() -> std::io::Result<Vec<TodoItem>> {
-    let path = std::path::Path::new("/tasks/tasks.json");
+    let path = std::path::Path::new("tasks/tasks.json");
 
     if !path.exists() {
         return Ok(Vec::new()); 
@@ -147,7 +147,6 @@ fn load_todos_from_file() -> std::io::Result<Vec<TodoItem>> {
 
     let file = File::open(&path)?;
     let new_todos: Vec<TodoItem> = from_reader(file)?;
-    println!("Loaded todos from file: {:?}", new_todos); 
     Ok(new_todos)
 }
 

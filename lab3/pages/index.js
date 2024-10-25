@@ -190,6 +190,11 @@ const App = () => {
                     />
                 </div>
 
+                <div className="input-section">
+                    <button onClick={saveTodos} className="add">Save Todos</button>
+                    <button onClick={loadTodosFromFile} className="add">Load Todos from File</button>
+                </div>
+
                 <div className="todos">
                     <ul className="todo-list">
                         {renderTodos(todos)}
@@ -203,8 +208,7 @@ const App = () => {
                 </div>
             </div>
 
-            <button onClick={saveTodos}>Save Todos</button>
-            <button onClick={loadTodosFromFile}>Load Todos from File</button>
+            
         </section>
     );
 }
