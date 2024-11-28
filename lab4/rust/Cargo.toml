@@ -6,11 +6,19 @@ edition = "2021"
 [dependencies]
 rocket = {version = "0.5.0-rc.3", features = ["json"]  }
 actix-web = "4"
+actix-web-httpauth = "0.8"
+jsonwebtoken = "8.0"
+sqlx = { version = "0.8.2", features = ["mysql", "runtime-tokio-native-tls"] } 
 actix-cors = "0.6"
 serde = {version = "1.0", features=["derive"]}
-uuid = {version = "1.0", features=["serde", "v4"]}
-chrono = {version = "0.4", features=["serde"]}
+uuid = {version = "1.0", features=["v4", "serde"]}
+chrono = "0.4"
 serde_json = "1.0"
+warp = "0.3"
+tokio = { version = "1", features = ["full"] }
+futures-util = "0.3"
+bcrypt = "0.12"
+dotenv = "0.15"
 
 [dev-dependencies]
 rand = "0.8"

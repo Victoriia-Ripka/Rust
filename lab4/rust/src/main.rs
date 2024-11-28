@@ -1,57 +1,135 @@
-#[macro_use]
-extern crate rocket;
-
-use rocket::tokio::sync::broadcast::{chanel};
-use actix_web::{web, App, HttpResponse, HttpServer, Responder};
-use actix_cors::Cors;
+use actix_web::{web, App, HttpServer, Responder, HttpResponse};
 use serde::{Deserialize, Serialize};
-use serde_json::from_reader;
+use sqlx::{mysql::MySqlPoolOptions, Pool, MySql};
+use actix_cors::Cors;
+use bcrypt::{hash, verify};
+use jsonwebtoken::{encode, Header, EncodingKey};
 use uuid::Uuid;
-use std::sync::{Mutex, MutexGuard};
-use std::fs::File;
-use std::io::Write;
-use chrono::{Utc, DateTime};
+use chrono::Utc;
+use dotenv::dotenv;
+use std::env;
 
-// #[derive(Debug, Serialize, Deserialize)]
-// struct User {
-//     id: Uuid,
-//     name: String,
-//     email: String,
-//     password: String
-// }
-
-// #[derive(Debug, Serialize, Deserialize)]
-// struct Message {
-//     id: Uuid,
-//     author: Uuid,
-//     text: String,
-//     created_at: DateTime<Utc>
-// }
-
-// #[derive(Deserialize)]
-// struct CreateMessage {
-//     author: Uuid,
-//     text: String
-// }
-
-
-// struct AppState {
-//     msgs_list: Mutex<Vec<TodoItem>>,
-// }
-
-#[get("/world")]
-fn world() -> &'static str {
-    "Hello, world!"
+#[derive(Serialize, Deserialize)]
+struct User {
+    id: Uuid,
+    name: String,
+    email: String,
+    password: String,
+    token: Option<String>,
 }
 
-#[launch]
-fn rocket() -> _ {
-    rocket::build()
-        .manage(channel::
-    .mount("/hello", routes![world])
+#[derive(Deserialize)]
+struct RegisterRequest {
+    name: String,
+    email: String,
+    password: String,
 }
 
+#[derive(Deserialize)]
+struct LoginRequest {
+    email: String,
+    password: String,
+}
 
+#[derive(Serialize, Deserialize)]
+struct Claims {
+    sub: Uuid,
+    exp: usize,
+}
+
+const JWT_SECRET: &str = "mysecret";
+
+// async fn register_user(
+//     pool: web::Data<Pool<MySql>>,
+//     user: web::Json<RegisterRequest>,
+// ) -> impl Responder {
+//     let user_id = Uuid::new_v4();
+//     let hashed_password = hash(&user.password, bcrypt::DEFAULT_COST).unwrap();
+
+//     let result = sqlx::query!(
+//         "INSERT INTO users (id, name, email, password) VALUES (?, ?, ?, ?)",
+//         user_id.to_string(),
+//         user.name,
+//         user.email,
+//         hashed_password
+//     )
+//     .execute(pool.get_ref())
+//     .await;
+
+//     match result {
+//         Ok(_) => HttpResponse::Ok().json("User registered successfully"),
+//         Err(err) => {
+//             eprintln!("Error: {}", err);
+//             HttpResponse::InternalServerError().json("Failed to register user")
+//         }
+//     }
+// }
+
+// async fn login_user(
+//     pool: web::Data<Pool<MySql>>,
+//     credentials: web::Json<LoginRequest>,
+// ) -> Result<HttpResponse, actix_web::Error> {
+//     let user = sqlx::query_as(
+//         User,
+//         "SELECT id as `id: Uuid`, name, email, password, CAST(NULL AS CHAR(255)) as token FROM users WHERE email = ?",
+//         credentials.email
+//     )
+//     .fetch_optional(pool.get_ref())
+//     .await
+//     .map_err(|e| {
+//         eprintln!("Query Error: {}", e);
+//         actix_web::error::ErrorInternalServerError("Database query failed")
+//     })?;
+
+//     if let Some(user) = user {
+//         if verify(&credentials.password, &user.password).unwrap() {
+//             let expiration = Utc::now()
+//                 .checked_add_signed(chrono::Duration::hours(1))
+//                 .expect("valid timestamp")
+//                 .timestamp() as usize;
+
+//             let claims = Claims {
+//                 sub: user.id,
+//                 exp: expiration,
+//             };
+
+//             let token = encode(
+//                 &Header::default(),
+//                 &claims,
+//                 &EncodingKey::from_secret(JWT_SECRET.as_ref()),
+//             )
+//             .unwrap();
+
+//             return HttpResponse::Ok().json(token);
+//         }
+//     }
+
+//     Ok(HttpResponse::Unauthorized().json("Invalid credentials"))
+// }
+
+#[tokio::main]
+async fn main() -> Result<(), sqlx::Error> {
+    dotenv().ok();
+
+    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+
+    let pool = MySqlPoolOptions::new()
+        .max_connections(5) 
+        .connect(&database_url)
+        .await?;
+
+    println!("Connected to MySQL database successfully!");
+
+    let rows = sqlx::query!("SELECT id, name FROM users")
+        .fetch_all(&pool)
+        .await?;
+
+    for row in rows {
+        println!("ID: {}, Name: {}", row.id, row.name);
+    }
+
+    Ok(())
+}
 
 
 // // SAVE msgs to file
@@ -123,27 +201,4 @@ fn rocket() -> _ {
 //     let file = File::open(&path)?;
 //     let new_todos: Vec<TodoItem> = from_reader(file)?;
 //     Ok(new_todos)
-// }
-
-// #[actix_web::main]
-// async fn main() -> std::io::Result<()> {
-//     let app_state = web::Data::new(AppState{
-//         todos_list: Mutex::new(Vec::new()),
-//     });
-//     HttpServer::new(move || {
-//         let cors = Cors::default()
-//                         .allow_any_origin()
-//                         .allow_any_method()
-//                         .allow_any_header()
-//                         .max_age(3600);
-
-//         App::new().app_data(app_state.clone()).wrap(cors)
-//             .route("/todos", web::get().to(get_todos))
-//             .route("/todos", web::post().to(add_todo))
-//             .route("/todos/{id}", web::put().to(update_todo))
-//             .route("/todos/{id}", web::delete().to(delete_todo))
-//             .route("/todos/save", web::post().to(save_todos))
-//             .route("/todos/load", web::get().to(load_todos))
-//     }).bind("127.0.0.1:8080")?.run().await
-
 // }
