@@ -6,6 +6,11 @@ const ForgotPassword = () => {
   const handleForgotPassword = async (e) => {
       e.preventDefault();
       
+    const data = {
+      email: email
+    }
+    
+    console.log(data);
       // TODO: Send email to the provided email address with a reset link
     
   };
@@ -13,14 +18,13 @@ const ForgotPassword = () => {
   return (
     <section>
       <h2>Forgot Password</h2>
+
       <form onSubmit={handleForgotPassword}>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
+          <label>
+            Email:
+            <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          </label>
+            
         <button type="submit">Send Reset Link</button>
       </form>
     </section>

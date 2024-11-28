@@ -4,9 +4,6 @@ import axios from "axios";
 import { format } from "date-fns"
 import CheckBox from '../components/ChechBox'
 
-
-// all logic + functions go here...
-
 const App = () => {
     const [todos, setTodos] = useState([]);
     const [todosCopy, setTodosCopy] = useState([]);
@@ -170,54 +167,8 @@ const App = () => {
     };
 
     return (
-        // <section className="main-body">
-        //     <div className="todo-app">
-        //         <div className="input-section">
-        //             <input
-        //                 type="text"
-        //                 id="todoInput"
-        //                 placeholder="Add a todo"
-        //                 value={todoInput || ""}
-        //                 onChange={(e) => setTodoInput(e.target.value)}
-        //             />
-        //             <button onClick={addTodos} className="add">
-        //                 {editIndex === -1 ? "Add" : "Update"}
-        //             </button>
-
-        //             <input
-        //                 type="text"
-        //                 id="searchInput"
-        //                 placeholder="Search"
-        //                 value={search}
-        //                 onChange={searchTodo}
-        //             />
-        //         </div>
-
-        //         <div className="input-section">
-        //             <button onClick={saveTodos} className="add">Save Todos</button>
-        //             <button onClick={loadTodosFromFile} className="add">Load Todos from File</button>
-        //         </div>
-
-        //         <div className="todos">
-        //             <ul className="todo-list">
-        //                 {renderTodos(todos)}
-        //             </ul>
-
-        //             {todos.length === 0 && (
-        //                 <div className="no-todos">
-        //                     <h1 className="not-found">No todos found</h1>
-        //                 </div>
-        //             )}
-        //         </div>
-        //     </div>
-
-            
-        // </section>
-
-        <section >
-            
-
-            
+         <section >
+            <p>Connect with others and enjoy real-time messaging.</p>
         </section>
     );
 }

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import Link from "next/link";
 
 const handleLogin = () => { 
     const [email, setEmail] = useState('');
@@ -6,10 +7,13 @@ const handleLogin = () => {
 
     const handleLogin = async (e) => {
         e.preventDefault();
-        if (!email || !password) {
-            alert('Please enter both email and password.');
-            return;
+        
+        const data = {
+            email: email,
+            password: password
         }
+
+        console.log(data);
 
     };
 
@@ -26,8 +30,10 @@ const handleLogin = () => {
                     Password:
                     <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
                 </label>
-                <input type="submit" value="Login" />
+
+                <button type="submit">Login</button>
             </form>
+            <Link href="/forgot-password" class="extra-nav">Forget password? Login</Link>
             
         </section>
     );

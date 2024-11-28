@@ -2,12 +2,9 @@ import Link from "next/link";
 
 const RootLayout = ({ children }) => {
   return (
-    <>
+    <div className="layout">
       <header>
-        <div>
-          <h1>Welcome to My Chat App</h1>
-          <p>Connect with others and enjoy real-time messaging.</p>
-        </div>
+        <h1>Online chat web site</h1>
         <nav className="navigation">
           <ul>
             <li>
@@ -27,14 +24,13 @@ const RootLayout = ({ children }) => {
       </header>
 
       <main className="main-body">
-        <h1>Online chat web site</h1>
         {children}
       </main>
 
       <footer>
         <p>This site and its contents are the property of Viktoriia Nowotka</p>
       </footer>
-    </>
+    </div>
   );
 };
 
