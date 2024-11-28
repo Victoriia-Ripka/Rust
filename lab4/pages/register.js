@@ -1,5 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import Link from "next/link";
+import axios from "axios";
+import { useRouter } from "next/router";
+import { AuthContext } from "./layout";
+
 
 const handleRegister = () => {
     const [username, setUsername] = useState("");
@@ -7,10 +11,13 @@ const handleRegister = () => {
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
 
+    const router = useRouter();
+    const { setIsAuthenticated } = useContext(AuthContext);
+
     const handleRegister = async (e) => {
         e.preventDefault();
 
-        if (password!== confirmPassword) {
+        if (password !== confirmPassword) {
             alert("Passwords do not match");
             return;
         }
@@ -22,6 +29,21 @@ const handleRegister = () => {
         }
 
         console.log(data);
+
+        try {
+            const response = await axios.post('http://127.0.0.1:8080/register', {
+                name: data.name,
+                email: data.email,
+                password: data.password
+            });
+            console.log("Registration successful:", response.data);
+            setIsAuthenticated(true);
+            router.push("/chat");
+            
+        } catch (error) {
+            alert("Maybe email do not match");
+            console.log("Error register :", error);
+        }
     };
 
     return (
@@ -50,6 +72,7 @@ const handleRegister = () => {
             </form>
 
             <Link href="/login" class="extra-nav">Already have an account? Login</Link>
+
         </section>
     )
 }

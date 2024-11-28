@@ -1,11 +1,11 @@
 use actix_web::{web, App, HttpServer, Responder, HttpResponse};
 use serde::{Deserialize, Serialize};
-use sqlx::{mysql::MySqlPoolOptions, Pool, MySql};
+use sqlx::{mysql::MySqlPoolOptions, Pool, MySql, mysql::MySqlPool};
 use actix_cors::Cors;
-use bcrypt::{hash, verify};
-use jsonwebtoken::{encode, Header, EncodingKey};
+use bcrypt::{hash, verify, DEFAULT_COST };
+// use jsonwebtoken::{encode, Header, EncodingKey};
 use uuid::Uuid;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use dotenv::dotenv;
 use std::env;
 
@@ -15,7 +15,7 @@ struct User {
     name: String,
     email: String,
     password: String,
-    token: Option<String>,
+    created_at: DateTime<Utc>,
 }
 
 #[derive(Deserialize)]
@@ -37,75 +37,56 @@ struct Claims {
     exp: usize,
 }
 
-const JWT_SECRET: &str = "mysecret";
+pub struct AppState {
+    pub pool: MySqlPool,
+}
 
-// async fn register_user(
-//     pool: web::Data<Pool<MySql>>,
-//     user: web::Json<RegisterRequest>,
-// ) -> impl Responder {
-//     let user_id = Uuid::new_v4();
-//     let hashed_password = hash(&user.password, bcrypt::DEFAULT_COST).unwrap();
+// const JWT_SECRET: &str = "mysecret";
 
-//     let result = sqlx::query!(
-//         "INSERT INTO users (id, name, email, password) VALUES (?, ?, ?, ?)",
-//         user_id.to_string(),
-//         user.name,
-//         user.email,
-//         hashed_password
-//     )
-//     .execute(pool.get_ref())
-//     .await;
+async fn register(data: web::Data<AppState>, register_req: web::Json<RegisterRequest>) -> impl Responder {
+    let hashed_password = match hash(&register_req.password, DEFAULT_COST) {
+        Ok(hp) => hp,
+        Err(_) => {
+            return HttpResponse::InternalServerError().json("Failed to hash password");
+        }
+    };
+    println!("Registering user: {:?}", register_req.name);
 
-//     match result {
-//         Ok(_) => HttpResponse::Ok().json("User registered successfully"),
-//         Err(err) => {
-//             eprintln!("Error: {}", err);
-//             HttpResponse::InternalServerError().json("Failed to register user")
-//         }
-//     }
-// }
+    let user = User {
+        id: Uuid::new_v4(),
+        name: register_req.name.clone(),
+        email: register_req.email.clone(),
+        password: hashed_password,
+        created_at: Utc::now(),
+    };
 
-// async fn login_user(
-//     pool: web::Data<Pool<MySql>>,
-//     credentials: web::Json<LoginRequest>,
-// ) -> Result<HttpResponse, actix_web::Error> {
-//     let user = sqlx::query_as(
-//         User,
-//         "SELECT id as `id: Uuid`, name, email, password, CAST(NULL AS CHAR(255)) as token FROM users WHERE email = ?",
-//         credentials.email
-//     )
-//     .fetch_optional(pool.get_ref())
-//     .await
-//     .map_err(|e| {
-//         eprintln!("Query Error: {}", e);
-//         actix_web::error::ErrorInternalServerError("Database query failed")
-//     })?;
+    // Convert created_at to a string
+    let created_at_str = user.created_at.to_rfc3339();
 
-//     if let Some(user) = user {
-//         if verify(&credentials.password, &user.password).unwrap() {
-//             let expiration = Utc::now()
-//                 .checked_add_signed(chrono::Duration::hours(1))
-//                 .expect("valid timestamp")
-//                 .timestamp() as usize;
+    let query_result = sqlx::query!(
+        "INSERT INTO users (id, name, email, password, created_at) VALUES (?, ?, ?, ?, ?)",
+        user.id.to_string(),
+        user.name,
+        user.email,
+        user.password,
+        created_at_str 
+    )
+    .execute(&data.pool)
+    .await;
 
-//             let claims = Claims {
-//                 sub: user.id,
-//                 exp: expiration,
-//             };
+    match query_result {
+        Ok(_) => {
+            println!("User registered successfully: {:?}", user.name);
+            HttpResponse::Created().json(&user)
+        }
+        Err(err) => {
+            eprintln!("Error: {}", err);
+            HttpResponse::InternalServerError().json("Failed to register user")
+        }
+    }
+}
 
-//             let token = encode(
-//                 &Header::default(),
-//                 &claims,
-//                 &EncodingKey::from_secret(JWT_SECRET.as_ref()),
-//             )
-//             .unwrap();
 
-//             return HttpResponse::Ok().json(token);
-//         }
-//     }
-
-//     Ok(HttpResponse::Unauthorized().json("Invalid credentials"))
-// }
 
 #[tokio::main]
 async fn main() -> Result<(), sqlx::Error> {
@@ -120,85 +101,18 @@ async fn main() -> Result<(), sqlx::Error> {
 
     println!("Connected to MySQL database successfully!");
 
-    let rows = sqlx::query!("SELECT id, name FROM users")
-        .fetch_all(&pool)
-        .await?;
+    HttpServer::new(move || {
+        let cors = Cors::default()
+            .allow_any_origin()
+            .allow_any_method()
+            .allow_any_header()
+            .max_age(3600);
 
-    for row in rows {
-        println!("ID: {}, Name: {}", row.id, row.name);
-    }
+        App::new()
+            .app_data(web::Data::new(AppState { pool: pool.clone() }))
+            .wrap(cors)
+            .route("/register", web::post().to(register))
+    }).bind("127.0.0.1:8080")?.run().await?;
 
     Ok(())
 }
-
-
-// // SAVE msgs to file
-// async fn save_msgs(data: web::Data<AppState>) -> impl Responder {
-//     let todos: MutexGuard<Vec<TodoItem>> = data.todos_list.lock().unwrap();
-
-//     match save_todos_to_file(&todos) {
-//         Ok(_) => HttpResponse::Ok().body("Todos saved successfully"),
-//         Err(e) => HttpResponse::InternalServerError().body(format!("Failed to save todos: {}", e)),
-//     }
-// }
-
-// // Helper function to save msgs
-// fn save_msgs_to_file(todos: &Vec<Message>) -> std::io::Result<()> {
-//     let dir = std::path::Path::new("data");
-//     let path = dir.join("msgs.json");
-
-//     if !dir.exists() {
-//         std::fs::create_dir_all(&dir)?; 
-//     }
-
-//     let file_result = std::fs::File::create(&path);
-
-//     match file_result {
-//         Ok(mut file) => {
-//             match serde_json::to_string_pretty(&todos) {
-//                 Ok(todos_json) => {
-//                     match file.write_all(todos_json.as_bytes()) {
-//                         Ok(_) => Ok(()),
-//                         Err(e) => {
-//                             eprintln!("Error writing to file: {}", e);
-//                             Err(e)
-//                         }
-//                     }
-//                 }
-//                 Err(e) => {
-//                     eprintln!("Error serializing todos to JSON: {}", e);
-//                     Err(std::io::Error::new(std::io::ErrorKind::Other, "Serialization failed"))
-//                 }
-//             }
-//         }
-//         Err(e) => {
-//             eprintln!("Error creating or opening the file: {}", e);
-//             Err(e)
-//         }
-//     }
-// }
-
-// // LOAD msgs 
-// async fn load_msgs(data: web::Data<AppState>) -> impl Responder {
-//     match load_todos_from_file() {
-//         Ok(saved_todos) => {
-//             let mut todos: MutexGuard<Vec<TodoItem>> = data.todos_list.lock().unwrap();
-//             *todos = saved_todos; 
-//             HttpResponse::Ok().json(&*todos) 
-//         }
-//         Err(e) => HttpResponse::InternalServerError().body(format!("Failed to load todos: {}", e)),
-//     }
-// }
-
-// // Helper function to read msgs
-// fn load_msgs_from_file() -> std::io::Result<Vec<Message>> {
-//     let path = std::path::Path::new("data/msgs.json");
-
-//     if !path.exists() {
-//         return Ok(Vec::new()); 
-//     }
-
-//     let file = File::open(&path)?;
-//     let new_todos: Vec<TodoItem> = from_reader(file)?;
-//     Ok(new_todos)
-// }

@@ -1,36 +1,49 @@
+import React, { useState, createContext } from "react";
 import Link from "next/link";
+import { useRouter } from "next/router";
+
+export const AuthContext = createContext();
 
 const RootLayout = ({ children }) => {
-  return (
-    <div className="layout">
-      <header>
-        <h1>Online chat web site</h1>
-        <nav className="navigation">
-          <ul>
-            <li>
-              <Link href="/register">Register</Link>
-            </li>
-            <li>
-              <Link href="/login">Login</Link>
-            </li>
-            <li>
-              <Link href="/forgot-password">Forgot Password</Link>
-            </li>
-            <li>
-              <Link href="/chat">Online Chat</Link>
-            </li>
-          </ul>
-        </nav>
-      </header>
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-      <main className="main-body">
-        {children}
-      </main>
+    return (
+    <AuthContext.Provider value={{ isAuthenticated, setIsAuthenticated }}>
+      <div className="layout">
+        <header>
+          <h1>Online chat web site</h1>
+          <nav className="navigation">
+            <ul>
+              {!isAuthenticated && (
+                <>
+                  <li>
+                    <Link href="/register">Register</Link>
+                  </li>
+                  <li>
+                    <Link href="/login">Login</Link>
+                  </li>
+                  <li>
+                    <Link href="/forgot-password">Forgot Password</Link>
+                  </li>
+                </>
+              )}
+              {isAuthenticated && (
+                <li>
+                  <Link href="/chat">Online Chat</Link>
+                </li>
+              )}
+              
+            </ul>
+          </nav>
+        </header>
 
-      <footer>
-        <p>This site and its contents are the property of Viktoriia Nowotka</p>
-      </footer>
-    </div>
+        <main className="main-body">{children}</main>
+
+        <footer>
+          <p>This site and its contents are the property of Viktoriia Nowotka</p>
+        </footer>
+      </div>
+    </AuthContext.Provider>
   );
 };
 
