@@ -28,15 +28,13 @@ const handleRegister = () => {
             password: password
         }
 
-        console.log(data);
-
         try {
             const response = await axios.post('http://127.0.0.1:8080/register', {
                 name: data.name,
                 email: data.email,
                 password: data.password
             });
-            console.log("Registration successful:", response.data);
+
             setIsAuthenticated(true);
             router.push("/chat");
             

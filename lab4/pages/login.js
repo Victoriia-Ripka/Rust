@@ -19,14 +19,12 @@ const handleLogin = () => {
             password: password
         }
 
-        console.log(data);
-
         try {
             const response = await axios.post('http://127.0.0.1:8080/login', {
                 email: data.email,
                 password: data.password
             });
-            console.log("Login successful:", response);
+ 
             setIsAuthenticated(true);
             router.push("/chat");
             

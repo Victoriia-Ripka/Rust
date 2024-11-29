@@ -1,13 +1,19 @@
-use actix_web::{web, App, HttpServer, Responder, HttpResponse};
+use actix::prelude::*;
+use actix::{Actor, Addr, Context, Handler, Recipient, Message};
+use actix_web_actors::ws;
+use actix_web::{web, App, HttpServer, Responder, HttpResponse, HttpRequest, Error};
+use actix_web::web::Payload;
 use serde::{Deserialize, Serialize};
-use sqlx::{mysql::MySqlPoolOptions, Pool, MySql, mysql::MySqlPool};
+use sqlx::{MySqlPool, mysql::MySqlPoolOptions};
+//  Pool, MySql, mysql::MySqlPool
 use actix_cors::Cors;
 use bcrypt::{hash, verify, DEFAULT_COST};
-// use jsonwebtoken::{encode, Header, EncodingKey};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use dotenv::dotenv;
 use std::env;
+use std::collections::HashMap;
+
 
 #[derive(Serialize, Deserialize)]
 struct User {
@@ -37,17 +43,87 @@ struct LoginResponse {
     email: String,
 }
 
-#[derive(Serialize, Deserialize)]
-struct Claims {
-    sub: Uuid,
-    exp: usize,
+#[derive(Clone, Debug, Serialize, Deserialize, Message)] 
+#[rtype(result = "()")] 
+struct ChatMessage {
+    sender: String,
+    message: String,
 }
 
-pub struct AppState {
-    pub pool: MySqlPool,
+#[derive(Message, Clone)]
+#[rtype(result = "()")]
+struct ClientMessage {
+    id: Uuid,
+    message: ChatMessage,
 }
 
-// const JWT_SECRET: &str = "mysecret";
+#[derive(Message)]
+#[rtype(result = "()")] 
+struct Connect {
+    id: Uuid,
+    addr: Recipient<ChatMessage>, 
+}
+
+pub struct WebSocketConnection {
+    recipient: Addr<ChatServer>
+    // pub recipient: Recipient<ChatMessage>,
+}
+
+pub struct ChatServer {
+    clients: HashMap<Uuid, Recipient<ChatMessage>>,
+}
+
+// pub struct AppState {
+//     pub pool: MySqlPool,
+// }
+#[derive(Clone)]
+struct AppState {
+    pool: sqlx::Pool<sqlx::MySql>,
+}
+
+impl Actor for WebSocketConnection {
+    type Context = ws::WebsocketContext<Self>;
+}
+
+impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebSocketConnection {
+    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
+        match msg {
+            Ok(ws::Message::Text(text)) => {
+                println!("Received WebSocket message: {}", text);
+                ctx.text(text);
+            }
+            Ok(ws::Message::Close(reason)) => {
+                println!("WebSocket closed: {:?}", reason);
+                ctx.stop();
+            }
+            _ => {}
+        }
+    }
+}
+
+impl ChatServer {
+    pub fn new() -> Self {
+        Self {
+            clients: HashMap::new(),
+        }
+    }
+}
+
+impl Actor for ChatServer {
+    type Context = Context<Self>;
+}
+
+impl Handler<ClientMessage> for ChatServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: ClientMessage, _: &mut Self::Context) {
+        for (id, client) in &self.clients {
+            if *id != msg.id {
+                let _ = client.do_send(msg.message.clone());
+            }
+        }
+    }
+}
 
 async fn register(data: web::Data<AppState>, register_req: web::Json<RegisterRequest>) -> impl Responder {
     let hashed_password = match hash(&register_req.password, DEFAULT_COST) {
@@ -122,8 +198,64 @@ async fn login(data: web::Data<AppState>, login_req: web::Json<LoginRequest>) ->
     }
 }
 
-#[tokio::main]
-async fn main() -> Result<(), sqlx::Error> {
+async fn websocket_connection(
+    srv: web::Data<Addr<ChatServer>>,
+    req: HttpRequest,
+    stream: Payload,
+) -> Result<HttpResponse, Error> {
+
+    println!("New WebSocket connection: {:?}", req.connection_info());
+
+
+    let id = Uuid::new_v4();
+
+    let id = 1; // Example ID, you can generate dynamically
+    let conn = WebSocketConnection::new(id);
+
+    // Start the actor
+    let actor_addr = conn.start();
+
+    // Start WebSocket connection
+    ws::start(actor_addr, &req, stream)
+
+    println!("WebSocket connection established: {:?}", id);
+
+    let (addr, resp) = ws::start_with_addr(
+        WebSocketConnection {
+            recipient: srv.get_ref().clone(),
+        },
+        &req,
+        stream,
+    )?;
+
+    let client_message = ClientMessage {
+        id,
+        message: ChatMessage {
+            sender: String::from("server"),
+            message: String::from("New connection established"),
+        },
+    };
+
+    srv.do_send(client_message);
+
+    Ok(resp)
+}
+
+// async fn post_message(
+//     server: web::Data<Addr<ChatServer>>,
+//     message: web::Json<ChatMessage>,
+// ) -> impl Responder {
+//     server.do_send(ClientMessage {
+//         id: Uuid::new_v4(),
+//         message: message.into_inner(),
+//     });
+//     HttpResponse::Ok().json("status: Message sent")
+// }
+
+// #[tokio::main]
+#[actix_web::main]
+// async fn main() -> Result<(), sqlx::Error> {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
 
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
@@ -134,6 +266,10 @@ async fn main() -> Result<(), sqlx::Error> {
         .await?;
 
     println!("Connected to MySQL database successfully!");
+
+    let chat_server = ChatServer::new().start();
+
+    println!("Starting WebSocket server on http://127.0.0.1:8080/");
 
     HttpServer::new(move || {
         let cors = Cors::default()
@@ -147,6 +283,8 @@ async fn main() -> Result<(), sqlx::Error> {
             .wrap(cors)
             .route("/register", web::post().to(register))
             .route("/login", web::post().to(login))
+            .route("/ws", web::get().to(websocket_connection))
+            // .route("/send", web::post().to(post_message))
     }).bind("127.0.0.1:8080")?.run().await?;
 
     Ok(())
