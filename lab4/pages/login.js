@@ -1,9 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import Link from "next/link";
+import axios from "axios";
+import { useRouter } from "next/router";
+import { AuthContext } from "./layout";
 
 const handleLogin = () => { 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+
+    const router = useRouter();
+    const { setIsAuthenticated } = useContext(AuthContext);
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -14,6 +20,20 @@ const handleLogin = () => {
         }
 
         console.log(data);
+
+        try {
+            const response = await axios.post('http://127.0.0.1:8080/login', {
+                email: data.email,
+                password: data.password
+            });
+            console.log("Login successful:", response);
+            setIsAuthenticated(true);
+            router.push("/chat");
+            
+        } catch (error) {
+            alert("Maybe password is wrong");
+            console.log("Error login :", error);
+        }
 
     };
 
@@ -33,7 +53,7 @@ const handleLogin = () => {
 
                 <button type="submit">Login</button>
             </form>
-            <Link href="/forgot-password" class="extra-nav">Forget password? Login</Link>
+            <Link href="/forgot-password" class="extra-nav">Forget password? Reset password</Link>
             
         </section>
     );

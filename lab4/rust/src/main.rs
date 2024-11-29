@@ -2,7 +2,7 @@ use actix_web::{web, App, HttpServer, Responder, HttpResponse};
 use serde::{Deserialize, Serialize};
 use sqlx::{mysql::MySqlPoolOptions, Pool, MySql, mysql::MySqlPool};
 use actix_cors::Cors;
-use bcrypt::{hash, verify, DEFAULT_COST };
+use bcrypt::{hash, verify, DEFAULT_COST};
 // use jsonwebtoken::{encode, Header, EncodingKey};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
@@ -31,6 +31,12 @@ struct LoginRequest {
     password: String,
 }
 
+#[derive(Serialize)]
+struct LoginResponse {
+    name: String,
+    email: String,
+}
+
 #[derive(Serialize, Deserialize)]
 struct Claims {
     sub: Uuid,
@@ -50,7 +56,6 @@ async fn register(data: web::Data<AppState>, register_req: web::Json<RegisterReq
             return HttpResponse::InternalServerError().json("Failed to hash password");
         }
     };
-    println!("Registering user: {:?}", register_req.name);
 
     let user = User {
         id: Uuid::new_v4(),
@@ -87,6 +92,35 @@ async fn register(data: web::Data<AppState>, register_req: web::Json<RegisterReq
 }
 
 
+async fn login(data: web::Data<AppState>, login_req: web::Json<LoginRequest>) -> impl Responder {
+    let query_result = sqlx::query!(
+        "SELECT name, email, password FROM users WHERE email = ?",
+        login_req.email
+    )
+   .fetch_one(&data.pool)
+   .await;
+
+    match query_result {
+        Ok(user) => {
+
+            let is_valid_password = verify(&login_req.password, &user.password).unwrap_or(false);
+
+            if is_valid_password {
+                let user_response = LoginResponse {
+                    name: user.name,
+                    email: user.email,
+                };
+                HttpResponse::Ok().json(serde_json::json!({"message": "Login successful", "data": user_response}))
+            } else {
+                HttpResponse::Unauthorized().body("Invalid email or password")
+            }
+        }
+        Err(err) => {
+            eprintln!("Error: {}", err);
+            HttpResponse::InternalServerError().json("Failed to authenticate user")
+        }
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<(), sqlx::Error> {
@@ -112,6 +146,7 @@ async fn main() -> Result<(), sqlx::Error> {
             .app_data(web::Data::new(AppState { pool: pool.clone() }))
             .wrap(cors)
             .route("/register", web::post().to(register))
+            .route("/login", web::post().to(login))
     }).bind("127.0.0.1:8080")?.run().await?;
 
     Ok(())
