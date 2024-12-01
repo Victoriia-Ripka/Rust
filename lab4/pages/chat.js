@@ -6,14 +6,13 @@ import { useRouter } from "next/router";
 import useWebSocket, { ReadyState } from "react-use-websocket";
 
 const Chat = () => {
-  // const [ws, setWs] = useState(null);
-  const [message, setMessage] = useState("");
-  // const [messages, setMessages] = useState([]);
   // const { isAuthenticated } = useContext(AuthContext);
-
+  const [message, setMessage] = useState("");
   const [socketUrl, setSocketUrl] = useState('ws://127.0.0.1:8080/ws');
   const [messageHistory, setMessageHistory] = useState([]);
-  const { sendMessage, lastMessage, readyState } = useWebSocket(socketUrl);
+  const { sendMessage, lastMessage, readyState } = useWebSocket(socketUrl, {
+    shouldReconnect: () => true,
+  });
 
   // if (!isAuthenticated) {
   //   return <p>You must log in to access the chat.</p>;
@@ -50,7 +49,16 @@ const Chat = () => {
     }
   }, [lastMessage]);
 
-  const handleClickSendMessage = useCallback(() => sendMessage(message), []);
+  const handleSubmit = useCallback(
+    (e) => {
+      e.preventDefault();
+      if (message.trim() && readyState === ReadyState.OPEN) {
+        sendMessage(message);
+        setMessage(""); 
+      }
+    },
+    [message, sendMessage, readyState]
+  );
 
   const connectionStatus = {
     [ReadyState.CONNECTING]: 'Connecting',
@@ -59,17 +67,6 @@ const Chat = () => {
     [ReadyState.CLOSED]: 'Closed',
     [ReadyState.UNINSTANTIATED]: 'Uninstantiated',
   }[readyState];
-
-  // const sendMessage = async (e) => {
-  //   e.preventDefault();
-
-  //   if (ws) {
-  //     ws.send(message);
-  //   }
-
-  //   setMessages((prev) => [...prev, message]);
-  //   setMessage("");
-  // };
 
   return (
     <section>
@@ -81,7 +78,7 @@ const Chat = () => {
         ))}
       </div>
       <p>WebSocket connection status: {connectionStatus}</p>
-      <form onSubmit={handleClickSendMessage}>
+      <form onSubmit={handleSubmit}>
         <input
           type="text"
           placeholder="Type your message"
@@ -96,14 +93,3 @@ const Chat = () => {
 };
 
 export default Chat;
-
-// try {
-//   const response = await axios.post("http://127.0.0.1:8080/send", {
-//     name: "User", // TODO: user name from context
-//     message: message,
-//   })
-//   console.log("Message sent:", response.data);
-//   socket.send(message);
-// } catch (error) {
-//   console.log("Error sending message:", error);
-// }

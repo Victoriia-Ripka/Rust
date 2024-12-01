@@ -64,18 +64,12 @@ struct Connect {
     addr: Recipient<ChatMessage>, 
 }
 
-pub struct WebSocketConnection {
-    recipient: Addr<ChatServer>
-    // pub recipient: Recipient<ChatMessage>,
-}
+struct WebSocketConnection;
 
 pub struct ChatServer {
     clients: HashMap<Uuid, Recipient<ChatMessage>>,
 }
 
-// pub struct AppState {
-//     pub pool: MySqlPool,
-// }
 #[derive(Clone)]
 struct AppState {
     pool: sqlx::Pool<sqlx::MySql>,
@@ -198,47 +192,12 @@ async fn login(data: web::Data<AppState>, login_req: web::Json<LoginRequest>) ->
     }
 }
 
+
 async fn websocket_connection(
-    srv: web::Data<Addr<ChatServer>>,
     req: HttpRequest,
-    stream: Payload,
-) -> Result<HttpResponse, Error> {
-
-    println!("New WebSocket connection: {:?}", req.connection_info());
-
-
-    let id = Uuid::new_v4();
-
-    let id = 1; // Example ID, you can generate dynamically
-    let conn = WebSocketConnection::new(id);
-
-    // Start the actor
-    let actor_addr = conn.start();
-
-    // Start WebSocket connection
-    ws::start(actor_addr, &req, stream)
-
-    println!("WebSocket connection established: {:?}", id);
-
-    let (addr, resp) = ws::start_with_addr(
-        WebSocketConnection {
-            recipient: srv.get_ref().clone(),
-        },
-        &req,
-        stream,
-    )?;
-
-    let client_message = ClientMessage {
-        id,
-        message: ChatMessage {
-            sender: String::from("server"),
-            message: String::from("New connection established"),
-        },
-    };
-
-    srv.do_send(client_message);
-
-    Ok(resp)
+    stream: web::Payload,
+) -> Result<HttpResponse, actix_web::Error> {
+    ws::start(WebSocketConnection {}, &req, stream)
 }
 
 // async fn post_message(
@@ -284,7 +243,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .route("/register", web::post().to(register))
             .route("/login", web::post().to(login))
             .route("/ws", web::get().to(websocket_connection))
-            // .route("/send", web::post().to(post_message))
     }).bind("127.0.0.1:8080")?.run().await?;
 
     Ok(())
