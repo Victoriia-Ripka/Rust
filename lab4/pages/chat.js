@@ -18,31 +18,6 @@ const Chat = () => {
   //   return <p>You must log in to access the chat.</p>;
   // }
 
-  // const WS_URL = "ws://127.0.0.1:8080";
-  // const { sendJsonMessage, lastJsonMessage, readyState } = useWebSocket(
-  //   WS_URL,
-  //   {
-  //     share: false,
-  //     shouldReconnect: () => true,
-  //   },
-  // );
-
-  // useEffect(() => {
-  //   console.log("Connection state changed");
-  //   if (readyState === ReadyState.OPEN) {
-  //     sendJsonMessage({
-  //       event: "subscribe",
-  //       data: {
-  //         channel: "general-chatroom",
-  //       },
-  //     });
-  //   }
-  // }, [readyState]);
-
-  // useEffect(() => {
-  //   console.log(`Got a new message: ${lastJsonMessage}`);
-  // }, [lastJsonMessage]);
-
   useEffect(() => {
     if (lastMessage !== null) {
       setMessageHistory((prev) => prev.concat(lastMessage));
@@ -53,7 +28,11 @@ const Chat = () => {
     (e) => {
       e.preventDefault();
       if (message.trim() && readyState === ReadyState.OPEN) {
-        sendMessage(message);
+        const payload = {
+          sender_id: '1746d3ea-829b-42af-b9ab-5e995c4e816e',
+          text: message.trim(),
+        };
+        sendMessage(JSON.stringify(payload));
         setMessage(""); 
       }
     },

@@ -1,11 +1,11 @@
 use actix::prelude::*;
-use actix::{Actor, Addr, Context, Handler, Recipient, Message};
+use actix::{Actor, Addr, Context, Handler, Recipient, Message, StreamHandler};
 use actix_web_actors::ws;
 use actix_web::{web, App, HttpServer, Responder, HttpResponse, HttpRequest, Error};
-use actix_web::web::Payload;
+// use actix_web::web::Payload;
 use serde::{Deserialize, Serialize};
-use sqlx::{MySqlPool, mysql::MySqlPoolOptions};
-//  Pool, MySql, mysql::MySqlPool
+use sqlx::{Pool, MySql, mysql::MySqlPoolOptions};
+// MySqlPool
 use actix_cors::Cors;
 use bcrypt::{hash, verify, DEFAULT_COST};
 use uuid::Uuid;
@@ -13,6 +13,8 @@ use chrono::{DateTime, Utc};
 use dotenv::dotenv;
 use std::env;
 use std::collections::HashMap;
+use std::collections::HashSet;
+use std::sync::{Arc, Mutex};
 
 
 #[derive(Serialize, Deserialize)]
@@ -46,28 +48,29 @@ struct LoginResponse {
 #[derive(Clone, Debug, Serialize, Deserialize, Message)] 
 #[rtype(result = "()")] 
 struct ChatMessage {
-    sender: String,
-    message: String,
+    id: Uuid,
+    sender_id: Uuid,
+    text: String,
 }
 
-#[derive(Message, Clone)]
+#[derive(Clone, Debug, Deserialize, Message)]
 #[rtype(result = "()")]
 struct ClientMessage {
-    id: Uuid,
-    message: ChatMessage,
+    sender_id: Uuid,
+    text: String,
 }
 
 #[derive(Message)]
 #[rtype(result = "()")] 
 struct Connect {
     id: Uuid,
-    addr: Recipient<ChatMessage>, 
+    addr: Addr<WebSocketConnection>, 
 }
 
-struct WebSocketConnection;
-
-pub struct ChatServer {
-    clients: HashMap<Uuid, Recipient<ChatMessage>>,
+#[derive(Message)]
+#[rtype(result = "()")]
+struct Disconnect {
+    id: Uuid,
 }
 
 #[derive(Clone)]
@@ -75,19 +78,57 @@ struct AppState {
     pool: sqlx::Pool<sqlx::MySql>,
 }
 
+type SharedServerState = Arc<Mutex<HashSet<Addr<WebSocketConnection>>>>;
+
+struct WebSocketConnection {
+    server: Addr<ChatServer>,
+    client_id: Uuid,
+}
+
+impl WebSocketConnection {
+    pub fn new(server: Addr<ChatServer>, client_id: Uuid) -> Self {
+        Self { server, client_id }
+    }
+}
+
 impl Actor for WebSocketConnection {
     type Context = ws::WebsocketContext<Self>;
+
+    fn started(&mut self, ctx: &mut Self::Context) {
+        let addr = ctx.address();
+        self.server.do_send(Connect {
+            id: self.client_id,
+            addr, 
+        });
+    }
+
+    fn stopped(&mut self, _ctx: &mut Self::Context) {
+        self.server.do_send(Disconnect {
+            id: self.client_id,
+        });
+    }
+}
+
+impl Handler<ChatMessage> for WebSocketConnection {
+    type Result = ();
+
+    fn handle(&mut self, msg: ChatMessage, ctx: &mut Self::Context) {
+        let text = serde_json::to_string(&msg).unwrap_or_else(|_| "Error serializing message".to_string());
+        ctx.text(text);
+    }
 }
 
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebSocketConnection {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Text(text)) => {
-                println!("Received WebSocket message: {}", text);
-                ctx.text(text);
+                if let Ok(client_msg) = serde_json::from_str::<ClientMessage>(&text) {
+                    self.server.do_send(client_msg);
+                } else {
+                    eprintln!("Invalid message format: {}", text);
+                }
             }
-            Ok(ws::Message::Close(reason)) => {
-                println!("WebSocket closed: {:?}", reason);
+            Ok(ws::Message::Close(_)) => {
                 ctx.stop();
             }
             _ => {}
@@ -95,10 +136,16 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebSocketConnecti
     }
 }
 
+pub struct ChatServer {
+    clients: HashMap<Uuid, Recipient<ChatMessage>>,
+    pool: Pool<MySql>,
+}
+
 impl ChatServer {
-    pub fn new() -> Self {
+    pub fn new(pool: Pool<MySql>) -> Self {
         Self {
             clients: HashMap::new(),
+            pool,
         }
     }
 }
@@ -107,14 +154,57 @@ impl Actor for ChatServer {
     type Context = Context<Self>;
 }
 
+impl Handler<Connect> for ChatServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: Connect, _: &mut Self::Context) {
+        let recipient = msg.addr.recipient::<ChatMessage>();
+        self.clients.insert(msg.id, recipient);
+    }
+}
+
+impl Handler<Disconnect> for ChatServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: Disconnect, _: &mut Self::Context) {
+        self.clients.remove(&msg.id);
+    }
+}
+
 impl Handler<ClientMessage> for ChatServer {
     type Result = ();
 
     fn handle(&mut self, msg: ClientMessage, _: &mut Self::Context) {
-        for (id, client) in &self.clients {
-            if *id != msg.id {
-                let _ = client.do_send(msg.message.clone());
+        let db_pool = self.pool.clone();
+        let message_id = Uuid::new_v4();
+        let text_for_db = msg.text.clone();
+        let text_for_clients = msg.text.clone();
+
+       println!("{} {} {}", message_id.to_string(), msg.sender_id.to_string(), text_for_db);
+
+        actix::spawn(async move {
+            let query_result = sqlx::query!(
+                "INSERT INTO msgs (id, sender_id, text) VALUES (?, ?, ?)",
+                message_id.to_string(),
+                msg.sender_id.to_string(),
+                text_for_db
+            )
+            .execute(&db_pool)
+            .await;
+
+            if let Err(e) = query_result {
+                eprintln!("Database error: {:?}", e);
+            } else {
+                println!("Message inserted successfully: {:?}", text_for_db);
             }
+        });
+
+        for (_, client) in &self.clients {
+            let _ = client.do_send(ChatMessage {
+                id: message_id,
+                sender_id: msg.sender_id,
+                text: msg.text.clone(),
+            });
         }
     }
 }
@@ -194,26 +284,18 @@ async fn login(data: web::Data<AppState>, login_req: web::Json<LoginRequest>) ->
 
 
 async fn websocket_connection(
-    req: HttpRequest,
+    req: HttpRequest, 
     stream: web::Payload,
-) -> Result<HttpResponse, actix_web::Error> {
-    ws::start(WebSocketConnection {}, &req, stream)
+    server: web::Data<Addr<ChatServer>>
+) -> Result<HttpResponse, Error> {
+    let client_id = Uuid::new_v4();
+    let websocket = WebSocketConnection::new(server.get_ref().clone(), client_id);
+
+    ws::start(websocket, &req, stream)
 }
 
-// async fn post_message(
-//     server: web::Data<Addr<ChatServer>>,
-//     message: web::Json<ChatMessage>,
-// ) -> impl Responder {
-//     server.do_send(ClientMessage {
-//         id: Uuid::new_v4(),
-//         message: message.into_inner(),
-//     });
-//     HttpResponse::Ok().json("status: Message sent")
-// }
 
-// #[tokio::main]
 #[actix_web::main]
-// async fn main() -> Result<(), sqlx::Error> {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
 
@@ -226,7 +308,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Connected to MySQL database successfully!");
 
-    let chat_server = ChatServer::new().start();
+    let chat_server = ChatServer::new(pool).start();
 
     println!("Starting WebSocket server on http://127.0.0.1:8080/");
 
@@ -238,7 +320,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .max_age(3600);
 
         App::new()
-            .app_data(web::Data::new(AppState { pool: pool.clone() }))
+            .app_data(web::Data::new(chat_server.clone()))
             .wrap(cors)
             .route("/register", web::post().to(register))
             .route("/login", web::post().to(login))
