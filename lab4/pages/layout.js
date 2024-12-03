@@ -1,4 +1,4 @@
-import React, { useState, createContext } from "react";
+import React, { useState, createContext, useContext  } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 
@@ -6,9 +6,10 @@ export const AuthContext = createContext();
 
 const RootLayout = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userName, setUserName] = useState('');
 
     return (
-    <AuthContext.Provider value={{ isAuthenticated, setIsAuthenticated }}>
+    <AuthContext.Provider value={{ isAuthenticated, setIsAuthenticated, userName, setUserName }}>
       <div className="layout">
         <header>
           <h1>Online chat web site</h1>
@@ -48,3 +49,5 @@ const RootLayout = ({ children }) => {
 };
 
 export default RootLayout;
+
+export const useAuth = () => useContext(AuthContext);

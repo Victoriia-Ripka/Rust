@@ -4,9 +4,11 @@ import axios from "axios";
 import { useRouter } from "next/router";
 
 import useWebSocket, { ReadyState } from "react-use-websocket";
+import { useAuth } from "./layout";
 
 const Chat = () => {
-  // const { isAuthenticated } = useContext(AuthContext);
+  const { isAuthenticated, userName } = useAuth();
+
   const [message, setMessage] = useState("");
   const [socketUrl, setSocketUrl] = useState('ws://127.0.0.1:8080/ws');
   const [messageHistory, setMessageHistory] = useState([]);
@@ -14,11 +16,13 @@ const Chat = () => {
     shouldReconnect: () => true,
   });
 
-  // if (!isAuthenticated) {
-  //   return <p>You must log in to access the chat.</p>;
-  // }
+  if (!isAuthenticated) {
+    return <p>You must log in to access the chat.</p>;
+  }
 
   useEffect(() => {
+    console.log(userName);
+
     if (lastMessage !== null) {
       setMessageHistory((prev) => prev.concat(lastMessage));
     }
@@ -29,7 +33,7 @@ const Chat = () => {
       e.preventDefault();
       if (message.trim() && readyState === ReadyState.OPEN) {
         const payload = {
-          sender_id: '1746d3ea-829b-42af-b9ab-5e995c4e816e',
+          sender: userName,
           text: message.trim(),
         };
         sendMessage(JSON.stringify(payload));
@@ -51,11 +55,24 @@ const Chat = () => {
     <section>
       <h2>Online Chat</h2>
 
-      <div className="chat-box">
-        {messageHistory.map((msg, index) => (
-          <div key={index}>{msg.data}</div>
-        ))}
+      <div className="msgs-box">
+        {messageHistory.map((msg, index) => {
+          let parsedMessage;
+          try {
+            parsedMessage = JSON.parse(msg.data); // Parse the JSON string
+          } catch (e) {
+            console.error("Invalid JSON received:", msg.data);
+            return <div key={index}>Invalid message format</div>;
+          }
+
+          return (
+            <p key={index}>
+              <strong>{parsedMessage.sender}</strong>: {parsedMessage.text}
+            </p>
+          );
+        })}
       </div>
+
       <p>WebSocket connection status: {connectionStatus}</p>
       <form onSubmit={handleSubmit}>
         <input
@@ -65,7 +82,7 @@ const Chat = () => {
           onChange={(e) => setMessage(e.target.value)}
           required
         />
-        <button type="submit" disabled={readyState !== ReadyState.OPEN}>Send</button>
+        <button type="submit" disabled={readyState !== ReadyState.OPEN} className="chat-btn">Send</button>
       </form>
     </section>
   );

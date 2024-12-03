@@ -4,28 +4,23 @@ import axios from "axios";
 import { useRouter } from "next/router";
 import { AuthContext } from "./layout";
 
-const handleLogin = () => { 
+const Login = () => { 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
 
     const router = useRouter();
-    const { setIsAuthenticated } = useContext(AuthContext);
+    const { setIsAuthenticated, setUserName } = useContext(AuthContext);
 
     const handleLogin = async (e) => {
         e.preventDefault();
         
-        const data = {
-            email: email,
-            password: password
-        }
+        const data = { email, password }
 
         try {
-            const response = await axios.post('http://127.0.0.1:8080/login', {
-                email: data.email,
-                password: data.password
-            });
+            const response = await axios.post('http://127.0.0.1:8080/login', data );
  
             setIsAuthenticated(true);
+            setUserName(response.data.data.name);
             router.push("/chat");
             
         } catch (error) {
@@ -57,4 +52,4 @@ const handleLogin = () => {
     );
 };
 
-export default handleLogin;
+export default Login;
