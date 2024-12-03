@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useCallback, useContext, useRef } from "react";
-import { AuthContext } from "./layout";
 import axios from "axios";
-import { useRouter } from "next/router";
-
 import useWebSocket, { ReadyState } from "react-use-websocket";
 import { useAuth } from "./layout";
 
@@ -21,10 +18,26 @@ const Chat = () => {
   }
 
   useEffect(() => {
-    console.log(userName);
+    const fetchMessages = async () => {
+      try {
+        const response = await axios.get('http://127.0.0.1:8080/messages');
+        setMessageHistory(response.data);
+      } catch (error) {
+        console.error("Error fetching message history:", error);
+      }
+    };
 
+    fetchMessages();
+  }, []);
+
+  useEffect(() => {
     if (lastMessage !== null) {
-      setMessageHistory((prev) => prev.concat(lastMessage));
+      try {
+        const parsedMessage = JSON.parse(lastMessage.data); 
+        setMessageHistory((prev) => [...prev, parsedMessage]);
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
+      }
     }
   }, [lastMessage]);
 
@@ -56,24 +69,14 @@ const Chat = () => {
       <h2>Online Chat</h2>
 
       <div className="msgs-box">
-        {messageHistory.map((msg, index) => {
-          let parsedMessage;
-          try {
-            parsedMessage = JSON.parse(msg.data); // Parse the JSON string
-          } catch (e) {
-            console.error("Invalid JSON received:", msg.data);
-            return <div key={index}>Invalid message format</div>;
-          }
-
-          return (
-            <p key={index}>
-              <strong>{parsedMessage.sender}</strong>: {parsedMessage.text}
+        {messageHistory.map((msg) => (
+            <p key={msg.id}>
+              <strong>{msg.sender}</strong>: {msg.text}
             </p>
-          );
-        })}
+          ))}
       </div>
 
-      <p>WebSocket connection status: {connectionStatus}</p>
+      {/* <p>WebSocket connection status: {connectionStatus}</p> */}
       <form onSubmit={handleSubmit}>
         <input
           type="text"

@@ -2,10 +2,8 @@ use actix::prelude::*;
 use actix::{Actor, Addr, Context, Handler, Recipient, Message, StreamHandler};
 use actix_web_actors::ws;
 use actix_web::{web, App, HttpServer, Responder, HttpResponse, HttpRequest, Error};
-// use actix_web::web::Payload;
 use serde::{Deserialize, Serialize};
 use sqlx::{Pool, MySql, mysql::MySqlPoolOptions};
-// MySqlPool
 use actix_cors::Cors;
 use bcrypt::{hash, verify, DEFAULT_COST};
 use uuid::Uuid;
@@ -19,7 +17,6 @@ use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
 struct AppState {
-    // pool: sqlx::Pool<sqlx::MySql>,
     chat_server: Addr<ChatServer>,
     pool: sqlx::MySqlPool,
 }
@@ -50,6 +47,33 @@ struct LoginRequest {
 struct LoginResponse {
     name: String,
     email: String,
+}
+
+#[derive(Serialize)]
+struct Messages {
+    id: String,
+    sender: String,
+    text: String,
+}
+
+async fn get_message_history(state: web::Data<AppState>) -> impl Responder {
+    let pool = &state.pool;
+
+    let messages_result = sqlx::query_as!(
+        Messages,
+        "SELECT sender, text FROM msgs"
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_else(|_| vec![]);
+
+    match messages_result {
+        Ok(messages) => HttpResponse::Ok().json(messages), 
+        Err(e) => {
+            eprintln!("Failed to fetch messages: {:?}", e);
+            HttpResponse::InternalServerError().body("Failed to fetch messages")
+        }
+    }
 }
 
 
@@ -190,11 +214,11 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebSocketConnecti
                 }
             }
             Ok(ws::Message::Close(reason)) => {
-                println!("WebSocket connection closed: {:?}", reason);
+                println!("WebSocket closed: {:?}", reason);
                 ctx.stop();
             }
-            Err(err) => {
-                eprintln!("WebSocket error: {:?}", err);
+            Err(e) => {
+                eprintln!("WebSocket error: {:?}", e);
                 ctx.stop();
             }
             _ => {}
@@ -307,12 +331,17 @@ impl Handler<ClientMessage> for ChatServer {
 async fn websocket_connection(
     req: HttpRequest, 
     stream: web::Payload,
-    server: web::Data<Addr<ChatServer>>
-) -> impl Responder { // Result<HttpResponse, Error>
+    data: web::Data<AppState>,
+) -> impl Responder { 
+    println!("Incoming WebSocket request: {:?}", req);
+
     let client_id = Uuid::new_v4();
     println!("WebSocket connection established for client: {}", client_id);
 
-    let websocket = WebSocketConnection::new(server.get_ref().clone(), client_id);
+    let websocket = WebSocketConnection::new(
+        data.chat_server.clone(),
+        client_id,
+    );
 
     match ws::start(websocket, &req, stream) {
         Ok(res) => {
@@ -328,7 +357,7 @@ async fn websocket_connection(
 
 
 #[actix_web::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> { //
+async fn main() -> Result<(), Box<dyn std::error::Error>> { 
     dotenv().ok();
 
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
@@ -340,7 +369,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> { //
     println!("Connected to MySQL database successfully!");
 
     let chat_server = ChatServer::new(pool.clone()).start();
-    println!("Starting WebSocket server on http://127.0.0.1:8080/");
+    println!("Starting WebSocket server on http://127.0.0.1:8081/");
+
+    let app_state = AppState {
+        chat_server: chat_server.clone(),
+        pool: pool.clone(),
+    };
 
     HttpServer::new(move || {
         let cors = Cors::default()
@@ -349,17 +383,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> { //
             .allow_any_header()
             .max_age(3600);
 
-        let app_state = AppState {
-            chat_server: chat_server.clone(),
-            pool: pool.clone(),
-        };
-
         App::new()
-            .app_data(web::Data::new(app_state))
+            .app_data(web::Data::new(app_state.clone()))
             .wrap(cors)
             .route("/register", web::post().to(register))
             .route("/login", web::post().to(login))
             .route("/ws", web::get().to(websocket_connection))
+            .route("/messages", web::get().to(get_message_history))
     }).bind("127.0.0.1:8080")?.run().await?;
 
     Ok(())

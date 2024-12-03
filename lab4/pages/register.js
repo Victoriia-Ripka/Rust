@@ -27,10 +27,8 @@ const Register = () => {
             email: email,
             password: password
         }
-        console.log(data)
 
         try {
-            console.log("Hi there");
             const response = await axios.post('http://127.0.0.1:8080/register', {
                 name: data.name,
                 email: data.email,
