@@ -61,11 +61,10 @@ async fn get_message_history(state: web::Data<AppState>) -> impl Responder {
 
     let messages_result = sqlx::query_as!(
         Messages,
-        "SELECT sender, text FROM msgs"
+        "SELECT id, sender, text FROM msgs"
     )
     .fetch_all(pool)
-    .await
-    .unwrap_or_else(|_| vec![]);
+    .await;
 
     match messages_result {
         Ok(messages) => HttpResponse::Ok().json(messages), 
