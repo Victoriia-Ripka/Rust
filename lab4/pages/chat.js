@@ -64,6 +64,17 @@ const Chat = () => {
     [ReadyState.UNINSTANTIATED]: 'Uninstantiated',
   }[readyState];
 
+  const handleFileUpload = async (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      await axios.post("http://127.0.0.1:8080/upload", formData);
+    } catch (error) {
+      console.error("File upload error:", error);
+    }
+  };
+
   return (
     <section>
       <h2>Online Chat</h2>
@@ -72,6 +83,11 @@ const Chat = () => {
         {messageHistory.map((msg) => (
             <p key={msg.id}>
               <strong>{msg.sender}</strong>: {msg.text}
+              {msg.fileUrl && (
+                <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer">
+                  View File
+                </a>
+              )}
             </p>
           ))}
       </div>
@@ -85,8 +101,12 @@ const Chat = () => {
           onChange={(e) => setMessage(e.target.value)}
           required
         />
-        <button type="submit" disabled={readyState !== ReadyState.OPEN} className="chat-btn">Send</button>
       </form>
+
+      <div>
+        <input type="file" onChange={handleFileUpload} />
+        <button type="submit" disabled={readyState !== ReadyState.OPEN} className="chat-btn">Send</button>
+      </div>
     </section>
   );
 };

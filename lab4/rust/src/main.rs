@@ -1,7 +1,7 @@
 use actix::prelude::*;
 use actix::{Actor, Addr, Context, Handler, Recipient, Message, StreamHandler};
 use actix_web_actors::ws;
-use actix_web::{web, App, HttpServer, Responder, HttpResponse, HttpRequest, Error};
+use actix_web::{web, App, HttpServer, Responder, HttpResponse, HttpRequest};
 use serde::{Deserialize, Serialize};
 use sqlx::{Pool, MySql, mysql::MySqlPoolOptions};
 use actix_cors::Cors;
@@ -11,8 +11,11 @@ use chrono::{DateTime, Utc};
 use dotenv::dotenv;
 use std::env;
 use std::collections::HashMap;
-use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
+use actix_multipart::Multipart;
+use futures::StreamExt;
+use std::fs::File;
+use std::io::{BufWriter, Write};
+use std::path::Path;
 
 
 #[derive(Clone)]
@@ -354,6 +357,89 @@ async fn websocket_connection(
     }
 }
 
+async fn upload(mut payload: Multipart, data: web::Data<AppState>) -> impl Responder {
+    use sanitize_filename::sanitize;
+
+    let uploads_dir = Path::new("./uploads");
+    if !uploads_dir.exists() {
+        if let Err(e) = std::fs::create_dir_all(uploads_dir) {
+            eprintln!("Failed to create uploads directory: {:?}", e);
+            return HttpResponse::InternalServerError().body("Failed to create uploads directory");
+        }
+    }
+
+    // Iterate over multipart stream
+    while let Some(item) = payload.next().await {
+        match item {
+            Ok(mut field) => {
+                // Get sanitized filename
+                let content_disposition = field.content_disposition();
+                let filename = if let Some(filename) = content_disposition.get_filename() {
+                    sanitize(filename)
+                } else {
+                    return HttpResponse::BadRequest().body("Filename missing in request");
+                };
+
+                // Define the file path
+                let filepath = uploads_dir.join(filename);
+
+                // Create the file with buffered writing
+                let file = match File::create(&filepath) {
+                    Ok(file) => BufWriter::new(file),
+                    Err(e) => {
+                        eprintln!("Failed to create file: {:?}", e);
+                        return HttpResponse::InternalServerError().body("Failed to save file");
+                    }
+                };
+
+                // Write the payload chunks into the file
+                let mut writer = file;
+                while let Some(chunk) = field.next().await {
+                    match chunk {
+                        Ok(data) => {
+                            if let Err(e) = writer.write_all(&data) {
+                                eprintln!("Failed to write to file: {:?}", e);
+                                return HttpResponse::InternalServerError().body("Failed to save file");
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Error while reading payload: {:?}", e);
+                            return HttpResponse::InternalServerError().body("Failed to read file data");
+                        }
+                    }
+                }
+
+                println!("File successfully saved: {:?}", filepath);
+
+                // Notify all WebSocket clients about the file upload
+                let file_url = format!("http://127.0.0.1:8080/uploads/{}", filename);
+                // let message = ChatMessage {
+                //     id: Uuid::new_v4(),
+                //     sender: "Server".to_string(),
+                //     text: format!("File uploaded: {}", filename),
+                // };
+
+                for (_, client) in data.chat_server.clients.iter() {
+                    let _ = client.do_send(ChatMessage {
+                        id: Uuid::new_v4(),
+                        sender: "Server".to_string(),
+                        text: format!("File uploaded: {}", filename),
+                    });
+                }
+
+                // for (_, client) in data.chat_server.clients.iter() { // Fix: Iterate over the hashmap directly
+                //     let _ = client.do_send(message.clone());
+                // }
+            }
+            Err(e) => {
+                eprintln!("Error while processing multipart: {:?}", e);
+                return HttpResponse::InternalServerError().body("Failed to process upload");
+            }
+        }
+    }
+
+    HttpResponse::Ok().json("File uploaded successfully")
+}
 
 #[actix_web::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> { 
@@ -389,6 +475,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .route("/login", web::post().to(login))
             .route("/ws", web::get().to(websocket_connection))
             .route("/messages", web::get().to(get_message_history))
+            .route("/upload", web::post().to(upload))
     }).bind("127.0.0.1:8080")?.run().await?;
 
     Ok(())

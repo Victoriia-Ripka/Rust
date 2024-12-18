@@ -7,6 +7,8 @@ edition = "2021"
 rocket = {version = "0.5.0-rc.3", features = ["json"]  }
 actix = "0.13"
 actix-cors = "0.6"
+actix-files = "0.6"
+actix-multipart = "0.4"  
 actix-web = "4"
 actix-web-actors = "4"
 actix-web-httpauth = "0.8"
@@ -21,6 +23,8 @@ tokio = { version = "1", features = ["full"] }
 futures-util = "0.3"
 bcrypt = "0.12"
 dotenv = "0.15"
+futures = "0.3"
+sanitize-filename = "0.5"
 
 [dev-dependencies]
 rand = "0.8"
