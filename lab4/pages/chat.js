@@ -96,7 +96,7 @@ const Chat = () => {
         {messageHistory.map((msg) => (
           <p key={msg.id}>
             <strong>{msg.sender}</strong>: {msg.text}
-            {msg.fileUrl && (
+            {msg.file_url && (
               <a href={msg.file_url} target="_blank" rel="noopener noreferrer">
                 View File
               </a>
