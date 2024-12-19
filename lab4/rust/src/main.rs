@@ -388,7 +388,7 @@ async fn upload(mut payload: Multipart) -> impl Responder {
                         Ok(file) => BufWriter::new(file),
                         Err(e) => {
                             eprintln!("Failed to create file at {}: {}", file_path.display(), e);
-                            continue; // Skip this file
+                            continue;
                         }
                     };
 
@@ -402,7 +402,6 @@ async fn upload(mut payload: Multipart) -> impl Responder {
                         }
                     }
 
-                    // Set the file URL after the file is successfully saved
                     file_url = Some(format!("/uploads/{}", file_path.file_name().unwrap().to_string_lossy()));
                 }
             }
