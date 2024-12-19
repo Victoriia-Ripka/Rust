@@ -7,8 +7,8 @@ use sqlx::{Pool, MySql, mysql::MySqlPoolOptions};
 use actix_cors::Cors;
 use bcrypt::{hash, verify, DEFAULT_COST};
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 use dotenv::dotenv;
+use chrono::{DateTime, Utc};
 use std::env;
 use std::collections::HashMap;
 use actix_multipart::Multipart;
@@ -16,6 +16,7 @@ use futures::StreamExt;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
+use serde_json::json;
 
 
 #[derive(Clone)]
@@ -52,11 +53,13 @@ struct LoginResponse {
     email: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct Messages {
     id: String,
     sender: String,
     text: String,
+    timestamp: String,
+    file_url: Option<String>,
 }
 
 async fn get_message_history(state: web::Data<AppState>) -> impl Responder {
@@ -64,7 +67,7 @@ async fn get_message_history(state: web::Data<AppState>) -> impl Responder {
 
     let messages_result = sqlx::query_as!(
         Messages,
-        "SELECT id, sender, text FROM msgs"
+        "SELECT id, sender, text, timestamp, file_url FROM msgs ORDER BY timestamp DESC" // ASC
     )
     .fetch_all(pool)
     .await;
@@ -78,7 +81,7 @@ async fn get_message_history(state: web::Data<AppState>) -> impl Responder {
     }
 }
 
-
+// TODO: check name for uniqueness
 async fn register(data: web::Data<AppState>, register_req: web::Json<RegisterRequest>) -> impl Responder {
     println!("Registering user: {:?}", register_req.name);
 
@@ -231,9 +234,11 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebSocketConnecti
 #[derive(Clone, Debug, Serialize, Deserialize, Message)] 
 #[rtype(result = "()")] 
 struct ChatMessage {
-    id: Uuid,
-    sender: String,
-    text: String,
+    id: Uuid,                 
+    sender: String,           
+    text: String,  
+    timestamp: String,          
+    file_url: Option<String>, 
 }
 
 #[derive(Clone, Debug, Deserialize, Message)]
@@ -241,6 +246,8 @@ struct ChatMessage {
 struct ClientMessage {
     sender: String,
     text: String,
+    timestamp: String,   
+    fileUrl: Option<String>,
 }
 
 #[derive(Message)]
@@ -299,15 +306,26 @@ impl Handler<ClientMessage> for ChatServer {
         let message_id = Uuid::new_v4();
         let sender_for_db = msg.sender.clone();
         let text_for_db = msg.text.clone();
+        let timestamp =  msg.timestamp.clone();
+        let file_url_for_db = msg.fileUrl.clone();
 
-       println!("{} {} {}", message_id.to_string(), sender_for_db, text_for_db);
+        println!(
+            "{} {} {} {:?}",
+            message_id.to_string(),
+            sender_for_db,
+            text_for_db,
+            file_url_for_db
+        );
 
         actix::spawn(async move {
             let query_result = sqlx::query!(
-                "INSERT INTO msgs (id, sender, text) VALUES (?, ?, ?)",
+                "INSERT INTO msgs (id, sender, text, timestamp, file_url)
+                 VALUES (?, ?, ?, ?, ?)",
                 message_id.to_string(),
                 sender_for_db,
-                text_for_db
+                text_for_db,
+                timestamp,
+                file_url_for_db
             )
             .execute(&db_pool)
             .await;
@@ -324,6 +342,8 @@ impl Handler<ClientMessage> for ChatServer {
                 id: message_id,
                 sender: msg.sender.clone(),
                 text: msg.text.clone(),
+                timestamp: msg.timestamp.clone(),
+                file_url: msg.fileUrl.clone(),
             });
         }
     }
@@ -335,10 +355,7 @@ async fn websocket_connection(
     stream: web::Payload,
     data: web::Data<AppState>,
 ) -> impl Responder { 
-    println!("Incoming WebSocket request: {:?}", req);
-
     let client_id = Uuid::new_v4();
-    println!("WebSocket connection established for client: {}", client_id);
 
     let websocket = WebSocketConnection::new(
         data.chat_server.clone(),
@@ -347,98 +364,57 @@ async fn websocket_connection(
 
     match ws::start(websocket, &req, stream) {
         Ok(res) => {
-            println!("WebSocket connection successful for client: {}", client_id);
             res
         }
-        Err(e) => {
-            eprintln!("Failed to start WebSocket: {:?}", e);
+        Err(_e) => {
             HttpResponse::InternalServerError().finish() 
         }
     }
 }
 
-async fn upload(mut payload: Multipart, data: web::Data<AppState>) -> impl Responder {
-    use sanitize_filename::sanitize;
 
-    let uploads_dir = Path::new("./uploads");
-    if !uploads_dir.exists() {
-        if let Err(e) = std::fs::create_dir_all(uploads_dir) {
-            eprintln!("Failed to create uploads directory: {:?}", e);
-            return HttpResponse::InternalServerError().body("Failed to create uploads directory");
-        }
-    }
+async fn upload(mut payload: Multipart) -> impl Responder {
+    let mut file_url = None;
 
-    // Iterate over multipart stream
-    while let Some(item) = payload.next().await {
-        match item {
+    while let Some(field) = payload.next().await {
+        match field {
             Ok(mut field) => {
-                // Get sanitized filename
-                let content_disposition = field.content_disposition();
-                let filename = if let Some(filename) = content_disposition.get_filename() {
-                    sanitize(filename)
-                } else {
-                    return HttpResponse::BadRequest().body("Filename missing in request");
-                };
+                if let Some(file) = field.content_disposition().get_filename() {
+                    let file_path = Path::new("./uploads").join(file);
+                    println!("Attempting to create file at: {:?}", file_path);
 
-                // Define the file path
-                let filepath = uploads_dir.join(filename);
-
-                // Create the file with buffered writing
-                let file = match File::create(&filepath) {
-                    Ok(file) => BufWriter::new(file),
-                    Err(e) => {
-                        eprintln!("Failed to create file: {:?}", e);
-                        return HttpResponse::InternalServerError().body("Failed to save file");
-                    }
-                };
-
-                // Write the payload chunks into the file
-                let mut writer = file;
-                while let Some(chunk) = field.next().await {
-                    match chunk {
-                        Ok(data) => {
-                            if let Err(e) = writer.write_all(&data) {
-                                eprintln!("Failed to write to file: {:?}", e);
-                                return HttpResponse::InternalServerError().body("Failed to save file");
-                            }
-                        }
+                    let file_result = File::create(&file_path);
+                    let mut file = match file_result {
+                        Ok(file) => BufWriter::new(file),
                         Err(e) => {
-                            eprintln!("Error while reading payload: {:?}", e);
-                            return HttpResponse::InternalServerError().body("Failed to read file data");
+                            eprintln!("Failed to create file at {}: {}", file_path.display(), e);
+                            continue; // Skip this file
+                        }
+                    };
+
+                    while let Some(chunk) = field.next().await {
+                        match chunk {
+                            Ok(chunk) => {
+                                println!("Writing chunk of size: {}", chunk.len());
+                                file.write_all(&chunk).unwrap();
+                            }
+                            Err(e) => eprintln!("Failed to read chunk: {}", e),
                         }
                     }
+
+                    // Set the file URL after the file is successfully saved
+                    file_url = Some(format!("/uploads/{}", file_path.file_name().unwrap().to_string_lossy()));
                 }
-
-                println!("File successfully saved: {:?}", filepath);
-
-                // Notify all WebSocket clients about the file upload
-                let file_url = format!("http://127.0.0.1:8080/uploads/{}", filename);
-                // let message = ChatMessage {
-                //     id: Uuid::new_v4(),
-                //     sender: "Server".to_string(),
-                //     text: format!("File uploaded: {}", filename),
-                // };
-
-                for (_, client) in data.chat_server.clients.iter() {
-                    let _ = client.do_send(ChatMessage {
-                        id: Uuid::new_v4(),
-                        sender: "Server".to_string(),
-                        text: format!("File uploaded: {}", filename),
-                    });
-                }
-
-                // for (_, client) in data.chat_server.clients.iter() { // Fix: Iterate over the hashmap directly
-                //     let _ = client.do_send(message.clone());
-                // }
             }
-            Err(e) => {
-                eprintln!("Error while processing multipart: {:?}", e);
-                return HttpResponse::InternalServerError().body("Failed to process upload");
-            }
+            Err(e) => eprintln!("Failed to upload file: {}", e),
         }
     }
 
-    HttpResponse::Ok().json("File uploaded successfully")
+    if let Some(url) = file_url {
+        HttpResponse::Ok().json(&json!({"fileUrl": url, "message": "File uploaded successfully"}))
+    } else {
+        HttpResponse::Ok().json(&json!({"fileUrl": null, "message": "No file uploaded"}))
+    }
 }
 
 #[actix_web::main]

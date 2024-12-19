@@ -7,6 +7,7 @@ const Chat = () => {
   const { isAuthenticated, userName } = useAuth();
 
   const [message, setMessage] = useState("");
+  const [file, setFile] = useState(null);
   const [socketUrl, setSocketUrl] = useState('ws://127.0.0.1:8080/ws');
   const [messageHistory, setMessageHistory] = useState([]);
   const { sendMessage, lastMessage, readyState } = useWebSocket(socketUrl, {
@@ -41,20 +42,43 @@ const Chat = () => {
     }
   }, [lastMessage]);
 
-  const handleSubmit = useCallback(
-    (e) => {
-      e.preventDefault();
-      if (message.trim() && readyState === ReadyState.OPEN) {
-        const payload = {
-          sender: userName,
-          text: message.trim(),
-        };
-        sendMessage(JSON.stringify(payload));
-        setMessage(""); 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!message.trim() && !file) return;
+
+    let fileUrl = null;
+
+    if (file) {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const response = await axios.post("http://127.0.0.1:8080/upload", formData);
+        console.log(response.data);
+        fileUrl = response.data.fileUrl;
+      } catch (error) {
+        console.error("File upload error:", error);
+        return;
       }
-    },
-    [message, sendMessage, readyState]
-  );
+    }
+
+    console.log(fileUrl)
+    const timestamp = new Date().toISOString();
+
+    const payload = {
+      sender: userName,
+      text: message.trim(),
+      fileUrl,
+      timestamp 
+    };
+
+    if (readyState === ReadyState.OPEN) {
+      sendMessage(JSON.stringify(payload));
+      setMessage(""); 
+      setFile(null); 
+    }
+  };
 
   const connectionStatus = {
     [ReadyState.CONNECTING]: 'Connecting',
@@ -64,49 +88,39 @@ const Chat = () => {
     [ReadyState.UNINSTANTIATED]: 'Uninstantiated',
   }[readyState];
 
-  const handleFileUpload = async (file) => {
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      await axios.post("http://127.0.0.1:8080/upload", formData);
-    } catch (error) {
-      console.error("File upload error:", error);
-    }
-  };
-
   return (
     <section>
       <h2>Online Chat</h2>
 
       <div className="msgs-box">
         {messageHistory.map((msg) => (
-            <p key={msg.id}>
-              <strong>{msg.sender}</strong>: {msg.text}
-              {msg.fileUrl && (
-                <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer">
-                  View File
-                </a>
-              )}
-            </p>
-          ))}
+          <p key={msg.id}>
+            <strong>{msg.sender}</strong>: {msg.text}
+            {msg.fileUrl && (
+              <a href={msg.file_url} target="_blank" rel="noopener noreferrer">
+                View File
+              </a>
+            )}
+          </p>
+        ))}
       </div>
 
-      {/* <p>WebSocket connection status: {connectionStatus}</p> */}
       <form onSubmit={handleSubmit}>
         <input
           type="text"
           placeholder="Type your message"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          required
         />
+        <input
+          type="file"
+          onChange={(e) => setFile(e.target.files[0])}
+        />
+        <button type="submit" disabled={readyState !== ReadyState.OPEN}>
+          Send
+        </button>
       </form>
 
-      <div>
-        <input type="file" onChange={handleFileUpload} />
-        <button type="submit" disabled={readyState !== ReadyState.OPEN} className="chat-btn">Send</button>
-      </div>
     </section>
   );
 };
